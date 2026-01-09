@@ -30,6 +30,61 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         }
+        
+        /* Bracket styles */
+        .bracket-container {
+            overflow-x: auto;
+            padding: 20px 0;
+        }
+        
+        .bracket-round {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            min-width: 200px;
+            padding: 0 10px;
+        }
+        
+        .bracket-match {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .bracket-match.gold {
+            border-color: #d4a574;
+            background: #fffbf5;
+        }
+        
+        .bracket-match.bronze {
+            border-color: #cd7f32;
+            background: #fff9f5;
+        }
+        
+        .bracket-team {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 14px;
+        }
+        
+        .bracket-team.winner {
+            font-weight: bold;
+            color: #1a3a52;
+        }
+        
+        .bracket-connector {
+            border-top: 2px solid #d1d5db;
+            border-right: 2px solid #d1d5db;
+            height: 50%;
+            margin-left: -10px;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -43,6 +98,7 @@
                 </div>
                 <div class="hidden md:flex space-x-8">
                     <a href="#tournaments" class="text-gray-700 hover:text-ocean-blue transition">Tournaments</a>
+                    <a href="#results" class="text-gray-700 hover:text-ocean-blue transition">Results</a>
                     <a href="#about" class="text-gray-700 hover:text-ocean-blue transition">About</a>
                     <a href="#register" class="text-gray-700 hover:text-ocean-blue transition">Register</a>
                     <a href="#contact" class="text-gray-700 hover:text-ocean-blue transition">Contact</a>
@@ -60,6 +116,7 @@
         <div id="mobile-menu" class="hidden md:hidden">
             <div class="px-2 pt-2 pb-3 space-y-1">
                 <a href="#tournaments" class="block px-3 py-2 text-gray-700 hover:bg-gray-100">Tournaments</a>
+                <a href="#results" class="block px-3 py-2 text-gray-700 hover:bg-gray-100">Results</a>
                 <a href="#about" class="block px-3 py-2 text-gray-700 hover:bg-gray-100">About</a>
                 <a href="#register" class="block px-3 py-2 text-gray-700 hover:bg-gray-100">Register</a>
                 <a href="#contact" class="block px-3 py-2 text-gray-700 hover:bg-gray-100">Contact</a>
@@ -131,6 +188,73 @@
                         </button>
                     </div>
                 </div> -->
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <section id="results" class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Tournament Results</h2>
+            
+            <div class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
+                
+                <!-- Result Card 1 - January 10 Moneyball -->
+                <div class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
+                    <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
+                        <h3 class="text-2xl font-bold mb-2">Saturday January 10 Moneyball</h3>
+                        <p class="text-gray-200">Tournament Complete</p>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-3 mb-6">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Format:</span>
+                                <span class="font-semibold">Coed Doubles</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Teams:</span>
+                                <span class="font-semibold">8 Teams</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Champion:</span>
+                                <span class="font-semibold text-ocean-blue" id="jan10-champion">Loading...</span>
+                            </div>
+                        </div>
+                        <button 
+                            onclick="toggleResults('jan10')"
+                            class="block w-full bg-ocean-blue hover:bg-ocean-teal text-white text-center font-semibold py-3 rounded-lg transition"
+                        >
+                            <span id="jan10-button-text">View Results</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Expandable Results -->
+                    <div id="jan10-results" class="hidden border-t-2 border-gray-200">
+                        <!-- Winner Photo -->
+                        <div class="p-6 bg-gray-50">
+                            <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
+                            <div class="text-center mb-4">
+                                <img 
+                                    id="jan10-photo" 
+                                    src="winners-jan10.jpg" 
+                                    alt="Tournament Champions" 
+                                    class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
+                                    style="max-height: 400px; display: block;"
+                                >
+                                <p class="text-gray-500 italic" id="jan10-photo-placeholder">Photo coming soon</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Bracket -->
+                        <div class="p-6">
+                            <h4 class="text-xl font-bold text-ocean-blue mb-4">Tournament Bracket</h4>
+                            <div id="jan10-bracket" class="bracket-container">
+                                <div class="text-center text-gray-500">Loading bracket...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
         </div>
@@ -288,6 +412,178 @@
                 submitButton.textContent = 'Subscribe';
             }
         });
+
+        // Tournament Results Functionality
+        function toggleResults(tournamentId) {
+            const resultsDiv = document.getElementById(`${tournamentId}-results`);
+            const buttonText = document.getElementById(`${tournamentId}-button-text`);
+            
+            if (resultsDiv.classList.contains('hidden')) {
+                resultsDiv.classList.remove('hidden');
+                buttonText.textContent = 'Hide Results';
+                
+                // Load bracket if not already loaded
+                if (!resultsDiv.dataset.loaded) {
+                    loadTournamentBracket(tournamentId);
+                    resultsDiv.dataset.loaded = 'true';
+                }
+            } else {
+                resultsDiv.classList.add('hidden');
+                buttonText.textContent = 'View Results';
+            }
+        }
+
+        async function loadTournamentBracket(tournamentId) {
+            const csvUrls = {
+                'jan10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv'
+            };
+            
+            const csvUrl = csvUrls[tournamentId];
+            if (!csvUrl) return;
+            
+            try {
+                const response = await fetch(csvUrl);
+                const csvText = await response.text();
+                const data = parseCSV(csvText);
+                
+                renderBracket(tournamentId, data);
+            } catch (error) {
+                console.error('Error loading bracket:', error);
+                document.getElementById(`${tournamentId}-bracket`).innerHTML = 
+                    '<p class="text-red-500">Error loading bracket data</p>';
+            }
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.split('\n').filter(line => line.trim());
+            const matches = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const cells = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+                
+                if (cells[0] && cells[0].includes('FINAL') || cells[0].includes('GOLD') || cells[0].includes('BRONZE')) {
+                    matches.push({
+                        round: cells[0],
+                        team1: cells[1] || '',
+                        team2: cells[2] || '',
+                        score: cells[3] || ''
+                    });
+                }
+            }
+            
+            return matches;
+        }
+
+        function renderBracket(tournamentId, data) {
+            const bracketDiv = document.getElementById(`${tournamentId}-bracket`);
+            const championDiv = document.getElementById(`${tournamentId}-champion`);
+            
+            // Find quarterfinals, semifinals, and finals
+            const quarterfinals = data.filter(m => m.round.includes('QUARTERFINAL'));
+            const semifinals = data.filter(m => m.round.includes('SEMIFINAL'));
+            const goldMatch = data.find(m => m.round.includes('GOLD'));
+            const bronzeMatch = data.find(m => m.round.includes('BRONZE'));
+            
+            // Determine winners
+            const getWinner = (match) => {
+                if (!match.score) return null;
+                const scores = match.score.split('-').map(s => parseInt(s.trim()));
+                if (scores.length >= 2) {
+                    return scores[0] > scores[1] ? match.team1 : match.team2;
+                }
+                return null;
+            };
+            
+            // Set champion
+            if (goldMatch) {
+                const champion = getWinner(goldMatch);
+                if (champion) {
+                    championDiv.textContent = champion;
+                }
+            }
+            
+            // Build bracket HTML
+            let html = '<div class="flex gap-4 overflow-x-auto pb-4">';
+            
+            // Quarterfinals
+            if (quarterfinals.length > 0) {
+                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">QUARTERFINALS</h5>';
+                quarterfinals.forEach(match => {
+                    const winner = getWinner(match);
+                    html += `
+                        <div class="bracket-match">
+                            <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
+                                <span>${match.team1}</span>
+                            </div>
+                            <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
+                                <span>${match.team2}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 text-center">${match.score}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // Semifinals
+            if (semifinals.length > 0) {
+                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">SEMIFINALS</h5>';
+                semifinals.forEach(match => {
+                    const winner = getWinner(match);
+                    html += `
+                        <div class="bracket-match">
+                            <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
+                                <span>${match.team1}</span>
+                            </div>
+                            <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
+                                <span>${match.team2}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 text-center">${match.score}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // Finals
+            html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">FINALS</h5>';
+            
+            if (goldMatch) {
+                const winner = getWinner(goldMatch);
+                html += `
+                    <div class="bracket-match gold">
+                        <div class="text-xs font-bold text-center mb-2 text-sand">🥇 GOLD MATCH</div>
+                        <div class="bracket-team ${winner === goldMatch.team1 ? 'winner' : ''}">
+                            <span>${goldMatch.team1}</span>
+                        </div>
+                        <div class="bracket-team ${winner === goldMatch.team2 ? 'winner' : ''}">
+                            <span>${goldMatch.team2}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1 text-center">${goldMatch.score}</div>
+                    </div>
+                `;
+            }
+            
+            if (bronzeMatch) {
+                const winner = getWinner(bronzeMatch);
+                html += `
+                    <div class="bracket-match bronze">
+                        <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
+                        <div class="bracket-team ${winner === bronzeMatch.team1 ? 'winner' : ''}">
+                            <span>${bronzeMatch.team1}</span>
+                        </div>
+                        <div class="bracket-team ${winner === bronzeMatch.team2 ? 'winner' : ''}">
+                            <span>${bronzeMatch.team2}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1 text-center">${bronzeMatch.score}</div>
+                    </div>
+                `;
+            }
+            
+            html += '</div></div>';
+            
+            bracketDiv.innerHTML = html;
+        }
     </script>
 
 </body>
