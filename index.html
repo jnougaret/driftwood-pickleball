@@ -34,15 +34,25 @@
         /* Bracket styles */
         .bracket-container {
             overflow-x: auto;
-            padding: 20px 0;
+            padding: 0px 0;
         }
         
         .bracket-round {
             display: flex;
             flex-direction: column;
-            justify-content: space-around;
             min-width: 200px;
             padding: 0 10px;
+            min-height: 500px;
+        }
+
+        .bracket-round.quarterfinals,
+        .bracket-round.finals {
+            justify-content: center;
+        }
+
+        .bracket-round.semifinals {
+            justify-content: center;
+            gap: 120px;
         }
         
         .bracket-match {
@@ -236,7 +246,7 @@
                     <!-- Expandable Results -->
                     <div id="jan10-results" class="hidden border-t-2 border-gray-200">
                         <!-- Winner Photo -->
-                        <div class="p-6 bg-gray-50">
+                        <div class="p-6 pb-2 bg-white">
                             <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
                             <div class="text-center mb-4">
                                 <img 
@@ -250,8 +260,8 @@
                         </div>
                         
                         <!-- Bracket -->
-                        <div class="p-6">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-4">Playoff Bracket</h4>
+                        <div class="p-6 pt-2">
+                            <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
                             <div id="jan10-bracket" class="bracket-container">
                                 <div class="text-center text-gray-500">Loading bracket...</div>
                             </div>
@@ -528,7 +538,7 @@
             
             // Quarterfinals
             if (quarterfinals.length > 0) {
-                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">QUARTERFINALS</h5>';
+                html += '<div class="bracket-round quarterfinals">';
                 quarterfinals.forEach(match => {
                     const winner = getWinner(match);
                     html += `
@@ -548,7 +558,7 @@
             
             // Semifinals
             if (semifinals.length > 0) {
-                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">SEMIFINALS</h5>';
+                html += '<div class="bracket-round semifinals">';
                 semifinals.forEach(match => {
                     const winner = getWinner(match);
                     html += `
@@ -567,7 +577,7 @@
             }
             
             // Finals
-            html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">FINALS</h5>';
+            html += '<div class="bracket-round finals">';
             
             if (goldMatch) {
                 const winner = getWinner(goldMatch);
