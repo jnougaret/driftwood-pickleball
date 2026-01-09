@@ -194,9 +194,9 @@
     </section>
 
     <!-- Results Section -->
-    <section id="results" class="py-16 bg-gray-50">
+    <section id="results" class="py-16 bg-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Tournament Results</h2>
+            <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Results</h2>
             
             <div class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
                 
@@ -204,7 +204,7 @@
                 <div class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
                     <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
                         <h3 class="text-2xl font-bold mb-2">Saturday January 10 Moneyball</h3>
-                        <p class="text-gray-200">Tournament Complete</p>
+                        <p class="text-gray-200">The Picklr Westbrook</p>
                     </div>
                     <div class="p-6">
                         <div class="space-y-3 mb-6">
@@ -213,12 +213,16 @@
                                 <span class="font-semibold">Coed Doubles</span>
                             </div>
                             <div class="flex justify-between">
-                                <span class="text-gray-600">Teams:</span>
-                                <span class="font-semibold">8 Teams</span>
+                                <span class="text-gray-600">Skill Level:</span>
+                                <span class="font-semibold">DUPR 9.5 or below</span>
                             </div>
                             <div class="flex justify-between">
-                                <span class="text-gray-600">Champion:</span>
-                                <span class="font-semibold text-ocean-blue" id="jan10-champion">Loading...</span>
+                                <span class="text-gray-600">Entry Fee:</span>
+                                <span class="font-semibold text-ocean-blue">$15 per player</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Prize Split:</span>
+                                <span class="font-semibold">50% - 30% - 20%</span>
                             </div>
                         </div>
                         <button 
@@ -242,13 +246,12 @@
                                     class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
                                     style="max-height: 400px; display: block;"
                                 >
-                                <p class="text-gray-500 italic" id="jan10-photo-placeholder">Photo coming soon</p>
                             </div>
                         </div>
                         
                         <!-- Bracket -->
                         <div class="p-6">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-4">Tournament Bracket</h4>
+                            <h4 class="text-xl font-bold text-ocean-blue mb-4">Playoff Bracket</h4>
                             <div id="jan10-bracket" class="bracket-container">
                                 <div class="text-center text-gray-500">Loading bracket...</div>
                             </div>
@@ -261,7 +264,7 @@
     </section>
 
     <!-- About Section -->
-    <section id="about" class="py-16 bg-gray-200">
+    <section id="about" class="py-16 bg-white">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-center text-ocean-blue mb-8">About Driftwood Pickleball</h2>
             <div class="prose prose-lg max-w-none text-gray-700 space-y-4">
@@ -273,7 +276,7 @@
     </section>
 
     <!-- Register Section -->
-    <section id="register" class="py-16 bg-white">
+    <section id="register" class="py-16 bg-gray-200">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-ocean-blue mb-8 text-center">Register for Updates</h2>
             <p class="text-lg text-gray-700 mb-8 text-center">
@@ -312,7 +315,7 @@
     </section>
 
     <!-- Contact Section -->
-    <section id="contact" class="py-16 bg-gray-200">
+    <section id="contact" class="py-16 bg-white">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 class="text-4xl font-bold text-ocean-blue mb-8">Get in Touch</h2>
             <p class="text-lg text-gray-700 mb-8">
@@ -446,6 +449,12 @@
                 const csvText = await response.text();
                 const data = parseCSV(csvText);
                 
+                if (data.length === 0) {
+                    document.getElementById(`${tournamentId}-bracket`).innerHTML = 
+                        '<p class="text-yellow-600">No match data found in spreadsheet</p>';
+                    return;
+                }
+                
                 renderBracket(tournamentId, data);
             } catch (error) {
                 console.error('Error loading bracket:', error);
@@ -458,15 +467,17 @@
             const lines = csv.split('\n').filter(line => line.trim());
             const matches = [];
             
-            for (let i = 0; i < lines.length; i++) {
+            // Skip header row (first line)
+            for (let i = 1; i < lines.length; i++) {
                 const cells = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
                 
-                if (cells[0] && cells[0].includes('FINAL') || cells[0].includes('GOLD') || cells[0].includes('BRONZE')) {
+                // Check if this line has data (Round, Team1, Team2, Score)
+                if (cells[0] && cells[0].length > 0) {
                     matches.push({
-                        round: cells[0],
-                        team1: cells[1] || '',
-                        team2: cells[2] || '',
-                        score: cells[3] || ''
+                        round: cells[0],      // Column A: Round (QUARTERFINAL 1, SEMIFINAL 1, etc.)
+                        team1: cells[1] || '', // Column B: Team 1 (A/B, E/F, etc.)
+                        team2: cells[2] || '', // Column C: Team 2 (C/D, G/H, etc.)
+                        score: cells[3] || ''  // Column D: Score (15-2, 11-2, 11-6, etc.)
                     });
                 }
             }
@@ -478,11 +489,21 @@
             const bracketDiv = document.getElementById(`${tournamentId}-bracket`);
             const championDiv = document.getElementById(`${tournamentId}-champion`);
             
+            if (!bracketDiv) {
+                console.error('Bracket div not found:', `${tournamentId}-bracket`);
+                return;
+            }
+            
             // Find quarterfinals, semifinals, and finals
             const quarterfinals = data.filter(m => m.round.includes('QUARTERFINAL'));
             const semifinals = data.filter(m => m.round.includes('SEMIFINAL'));
             const goldMatch = data.find(m => m.round.includes('GOLD'));
             const bronzeMatch = data.find(m => m.round.includes('BRONZE'));
+            
+            console.log('Quarterfinals:', quarterfinals);
+            console.log('Semifinals:', semifinals);
+            console.log('Gold match:', goldMatch);
+            console.log('Bronze match:', bronzeMatch);
             
             // Determine winners
             const getWinner = (match) => {
@@ -494,20 +515,20 @@
                 return null;
             };
             
-            // Set champion
-            if (goldMatch) {
+            // Set champion (only if championDiv exists)
+            if (championDiv && goldMatch) {
                 const champion = getWinner(goldMatch);
                 if (champion) {
                     championDiv.textContent = champion;
                 }
             }
             
-            // Build bracket HTML
-            let html = '<div class="flex gap-4 overflow-x-auto pb-4">';
+            // Build bracket HTML with aligned headers
+            let html = '<div class="flex gap-4 overflow-x-auto pb-4" style="align-items: flex-start;">';
             
             // Quarterfinals
             if (quarterfinals.length > 0) {
-                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">QUARTERFINALS</h5>';
+                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">QUARTERFINALS</h5>';
                 quarterfinals.forEach(match => {
                     const winner = getWinner(match);
                     html += `
@@ -527,7 +548,7 @@
             
             // Semifinals
             if (semifinals.length > 0) {
-                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">SEMIFINALS</h5>';
+                html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">SEMIFINALS</h5>';
                 semifinals.forEach(match => {
                     const winner = getWinner(match);
                     html += `
@@ -546,7 +567,7 @@
             }
             
             // Finals
-            html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm">FINALS</h5>';
+            html += '<div class="bracket-round"><h5 class="font-bold text-center mb-4 text-sm" style="min-height: 24px;">FINALS</h5>';
             
             if (goldMatch) {
                 const winner = getWinner(goldMatch);
