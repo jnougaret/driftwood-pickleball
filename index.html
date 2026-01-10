@@ -500,15 +500,34 @@
             
             // Skip header row (first line)
             for (let i = 1; i < lines.length; i++) {
-                const cells = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+                const line = lines[i];
+                
+                // Use a more sophisticated CSV parser that handles quoted fields
+                const cells = [];
+                let currentCell = '';
+                let insideQuotes = false;
+                
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    
+                    if (char === '"') {
+                        insideQuotes = !insideQuotes;
+                    } else if (char === ',' && !insideQuotes) {
+                        cells.push(currentCell.trim());
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
+                }
+                cells.push(currentCell.trim()); // Add the last cell
                 
                 // Check if this line has data (Round, Team1, Team2, Score)
                 if (cells[0] && cells[0].length > 0) {
                     matches.push({
-                        round: cells[0],      // Column A: Round (QUARTERFINAL 1, SEMIFINAL 1, etc.)
-                        team1: cells[1] || '', // Column B: Team 1 (A/B, E/F, etc.)
-                        team2: cells[2] || '', // Column C: Team 2 (C/D, G/H, etc.)
-                        score: cells[3] || ''  // Column D: Score (15-2, 11-2, 11-6, etc.)
+                        round: cells[0],       // Column A: Round
+                        team1: cells[1] || '', // Column B: Team 1
+                        team2: cells[2] || '', // Column C: Team 2
+                        score: cells[3] || ''  // Column D: Score (including commas like "11-2, 11-6")
                     });
                 }
             }
