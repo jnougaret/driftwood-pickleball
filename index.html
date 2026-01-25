@@ -289,7 +289,64 @@
                         </div>
                     </div>
                 </div>
-
+            <!-- Result Card 2 - January 24 Moneyball -->
+                <div class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
+                    <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
+                        <h3 class="text-2xl font-bold mb-2">Saturday January 24 Moneyball</h3>
+                        <p class="text-gray-200">The Picklr Westbrook</p>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-3 mb-6">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Format:</span>
+                                <span class="font-semibold">Coed Doubles</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Skill Level:</span>
+                                <span class="font-semibold">DUPR 9.25 or below</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Entry Fee:</span>
+                                <span class="font-semibold text-ocean-blue">$15 per player</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Prize Split:</span>
+                                <span class="font-semibold">50% - 30% - 20%</span>
+                            </div>
+                        </div>
+                        <button 
+                            onclick="toggleResults('jan24')"
+                            class="block w-full bg-ocean-blue hover:bg-ocean-teal text-white text-center font-semibold py-3 rounded-lg transition"
+                        >
+                            <span id="jan24-button-text">View Results</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Expandable Results -->
+                    <div id="jan24-results" class="hidden border-t-2 border-gray-200">
+                        <!-- Winner Photo -->
+                        <div class="p-6 pb-2 bg-white">
+                            <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
+                            <div class="text-center mb-4">
+                                <img 
+                                    id="jan24-photo" 
+                                    src="winners-jan24.jpg" 
+                                    alt="Tournament Champions" 
+                                    class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
+                                    style="max-height: 400px; display: block;"
+                                >
+                            </div>
+                        </div>
+                        
+                        <!-- Bracket -->
+                        <div class="p-6 pt-2">
+                            <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
+                            <div id="jan24-bracket" class="bracket-container">
+                                <div class="text-center text-gray-500">Loading bracket...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -524,7 +581,8 @@
 
         async function loadTournamentBracket(tournamentId) {
             const csvUrls = {
-                'jan10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv'
+                'jan10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv',
+                'jan24': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv'
             };
             
             const csvUrl = csvUrls[tournamentId];
