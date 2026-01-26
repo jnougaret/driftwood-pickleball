@@ -38,25 +38,36 @@
         /* Bracket styles */
         .bracket-container {
             overflow-x: auto;
-            padding: 0px 0;
+            padding: 0;
+            padding-bottom: 10px;
         }
         
         .bracket-round {
             display: flex;
             flex-direction: column;
-            min-width: 200px;
-            padding: 0 0px;
-            min-height: 500px;
+            min-width: auto;
+            padding: 0;
+            min-height: auto;
         }
 
-        .bracket-round.quarterfinals,
+        .bracket-round.quarterfinals {
+            justify-content: center;
+        }
+
+        .bracket-round.semifinals,
         .bracket-round.finals {
             justify-content: center;
+            min-height: 410px; /* Give these columns height for centering */
         }
 
         .bracket-round.semifinals {
+            gap: 100px;
+        }
+
+        .bracket-round.finals {
             justify-content: center;
-            gap: 120px;
+            min-height: 400px;
+            align-items: center; /* Center items horizontally */
         }
         
         .bracket-match {
@@ -69,6 +80,8 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
+            width: fit-content;
+            min-width: 150px;
         }
         
         .bracket-match.gold {
@@ -87,6 +100,11 @@
             padding: 4px 0;
             font-size: 14px;
         }
+
+        .bracket-team span:last-child {
+            white-space: nowrap; 
+            margin-left: 12px; 
+        }
         
         .bracket-team.winner {
             font-weight: bold;
@@ -99,7 +117,91 @@
             height: 50%;
             margin-left: -10px;
         }
+
+        /* Blue Theme */
+        .tournament-card-blue .card-header {
+            background: linear-gradient(to right, #1a3a52, #2d5a7b);
+        }
+
+        .btn-blue {
+            background-color: #1a3a52;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        .btn-blue:hover {
+            background-color: #2d5a7b;
+        }
+
+        /* Gold Theme */
+        .tournament-card-gold .card-header {
+            background: linear-gradient(to right, #e8b44f, #d9a03a);
+        }
+
+        .btn-gold {
+            background-color: #d9a03a;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        .btn-gold:hover {
+            background-color: #e8b44f;
+        }
+
+        /* YouTube Live Button */
+        .btn-live {
+            background-color: #FF0000;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        .btn-live:hover {
+            background-color: #CC0000;
+        }
+
+        /* Card Base Styles */
+        .tournament-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            transition: all 0.3s;
+            width: 100%;
+            align-self: flex-start; /* Prevent cards from stretching together */
+        }
+
+        .tournament-card:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transform: translateY(-4px);
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            color: white;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Responsive card widths */
+        @media (min-width: 768px) {
+            .tournament-card {
+                width: calc(50% - 1rem);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .tournament-card {
+                width: 350px;
+            }
+        }
+
+        #results-container {
+            align-items: flex-start !important;
+        }
     </style>
+    <script src="tournaments-config.js"></script>
 </head>
 <body class="bg-gray-50">
     
@@ -155,71 +257,8 @@
     <section id="tournaments" class="py-16 bg-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Upcoming Tournaments</h2>
-            
-            <div class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
-                
-                <!-- Tournament Card 1 -->
-                <div id="feb7-tournament" class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition transform hover:-translate-y-1 w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
-                    <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
-                        <h3 class="text-2xl font-bold mb-2">Saturday February 7 Moneyball</h3>
-                        <p class="text-gray-200">2:00 PM Start @ The Picklr Westbrook</p>
-                    </div>
-                    <div class="p-6">
-                        <div class="space-y-3 mb-6">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Format:</span>
-                                <span class="font-semibold">Coed Doubles</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Skill Level:</span>
-                                <span class="font-semibold">DUPR 8.5 or below</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Entry Fee:</span>
-                                <span class="font-semibold text-ocean-blue">$15 per player</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Prize Split:</span>
-                                <span class="font-semibold">50% - 30% - 20%</span>
-                            </div>
-                        </div>
-                        <a href="https://link.swishsportsapp.com/GExth" class="tournament-action-button block w-full bg-ocean-blue hover:bg-ocean-teal text-white text-center font-semibold py-3 rounded-lg transition">
-                            Register on Swish
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Tournament Card 2 -->
-                <div id="jan10-tournament" class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition transform hover:-translate-y-1 w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
-                    <div class="p-6 text-white" style="background: linear-gradient(to right, #e8b44f, #d9a03a);">
-                        <h3 class="text-2xl font-bold mb-2">Saturday January 10 Moneyball</h3>
-                        <p class="text-gray-200">2:00 PM Start @ The Picklr Westbrook</p>
-                    </div>
-                    <div class="p-6">
-                        <div class="space-y-3 mb-6">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Format:</span>
-                                <span class="font-semibold">Coed Doubles</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Skill Level:</span>
-                                <span class="font-semibold">DUPR 9.5 or below</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Entry Fee:</span>
-                                <span class="font-semibold text-ocean-blue">$15 per player</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Prize Split:</span>
-                                <span class="font-semibold">50% - 30% - 20%</span>
-                            </div>
-                        </div>
-                        <a href="https://link.swishsportsapp.com/GHH6A" class="tournament-action-button block w-full text-white text-center font-semibold py-3 rounded-lg transition" style="background-color: #d9a03a;" onmouseover="this.style.backgroundColor='#c68a2e'" onmouseout="this.style.backgroundColor='#d9a03a'">
-                            Register on Swish
-                        </a>
-                    </div>
-                </div>
-
+            <div id="tournaments-container" class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
+                <!-- Tournaments auto-generated from tournaments-config.js -->
             </div>
         </div>
     </section>
@@ -228,125 +267,8 @@
     <section id="results" class="py-16 bg-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Results</h2>
-            
-            <div class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
-                
-                <!-- Result Card 1 - January 10 Moneyball -->
-                <div class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
-                    <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
-                        <h3 class="text-2xl font-bold mb-2">Saturday January 10 Moneyball</h3>
-                        <p class="text-gray-200">The Picklr Westbrook</p>
-                    </div>
-                    <div class="p-6">
-                        <div class="space-y-3 mb-6">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Format:</span>
-                                <span class="font-semibold">Coed Doubles</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Skill Level:</span>
-                                <span class="font-semibold">DUPR 9.5 or below</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Entry Fee:</span>
-                                <span class="font-semibold text-ocean-blue">$15 per player</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Prize Split:</span>
-                                <span class="font-semibold">50% - 30% - 20%</span>
-                            </div>
-                        </div>
-                        <button 
-                            onclick="toggleResults('jan10')"
-                            class="block w-full bg-ocean-blue hover:bg-ocean-teal text-white text-center font-semibold py-3 rounded-lg transition"
-                        >
-                            <span id="jan10-button-text">View Results</span>
-                        </button>
-                    </div>
-                    
-                    <!-- Expandable Results -->
-                    <div id="jan10-results" class="hidden border-t-2 border-gray-200">
-                        <!-- Winner Photo -->
-                        <div class="p-6 pb-2 bg-white">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
-                            <div class="text-center mb-4">
-                                <img 
-                                    id="jan10-photo" 
-                                    src="winners-jan10.jpeg" 
-                                    alt="Tournament Champions" 
-                                    class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
-                                    style="max-height: 400px; display: block;"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Bracket -->
-                        <div class="p-6 pt-2">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
-                            <div id="jan10-bracket" class="bracket-container">
-                                <div class="text-center text-gray-500">Loading bracket...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            <!-- Result Card 2 - January 24 Moneyball -->
-                <div class="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition w-full md:w-[calc(50%-1rem)] lg:w-[350px]">
-                    <div class="bg-gradient-to-r from-ocean-blue to-ocean-teal p-6 text-white">
-                        <h3 class="text-2xl font-bold mb-2">Saturday January 24 Moneyball</h3>
-                        <p class="text-gray-200">The Picklr Westbrook</p>
-                    </div>
-                    <div class="p-6">
-                        <div class="space-y-3 mb-6">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Format:</span>
-                                <span class="font-semibold">Coed Doubles</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Skill Level:</span>
-                                <span class="font-semibold">DUPR 9.25 or below</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Entry Fee:</span>
-                                <span class="font-semibold text-ocean-blue">$15 per player</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Prize Split:</span>
-                                <span class="font-semibold">50% - 30% - 20%</span>
-                            </div>
-                        </div>
-                        <button 
-                            onclick="toggleResults('jan24')"
-                            class="block w-full bg-ocean-blue hover:bg-ocean-teal text-white text-center font-semibold py-3 rounded-lg transition"
-                        >
-                            <span id="jan24-button-text">View Results</span>
-                        </button>
-                    </div>
-                    
-                    <!-- Expandable Results -->
-                    <div id="jan24-results" class="hidden border-t-2 border-gray-200">
-                        <!-- Winner Photo -->
-                        <div class="p-6 pb-2 bg-white">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
-                            <div class="text-center mb-4">
-                                <img 
-                                    id="jan24-photo" 
-                                    src="winners-jan24.jpg" 
-                                    alt="Tournament Champions" 
-                                    class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
-                                    style="max-height: 400px; display: block;"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Bracket -->
-                        <div class="p-6 pt-2">
-                            <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
-                            <div id="jan24-bracket" class="bracket-container">
-                                <div class="text-center text-gray-500">Loading bracket...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div id="results-container" class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
+                <!-- Results auto-generated from tournaments-config.js -->
             </div>
         </div>
     </section>
@@ -427,62 +349,10 @@
     </footer>
 
     <!-- JavaScript -->
+    <script src="tournaments-dynamic.js"></script>
+
+    <!-- Mobile menu and smooth scroll (keep these) -->
     <script>
-    // Tournament time management  
-    function checkTournamentStatus() {
-        const tournaments = [
-            {
-                id: 'jan10-tournament',
-                startTime: new Date('2026-01-10T13:00:00'), 
-                endTime: new Date('2026-01-10T18:00:00'),  
-                liveUrl: 'https://www.youtube.com/@JoshuaNougaret/live',
-                registerUrl: 'https://link.swishsportsapp.com/GR0Cb'
-            },
-            {
-                id: 'jan24-tournament',
-                startTime: new Date('2026-01-24T13:00:00'),
-                endTime: new Date('2026-01-24T18:00:00'),
-                liveUrl: 'https://www.youtube.com/@JoshuaNougaret/live',
-                registerUrl: 'https://link.swishsportsapp.com/GHH6A'
-            }
-        ];
-        
-        const now = new Date();
-        
-        tournaments.forEach(tournament => {
-            const card = document.getElementById(tournament.id);
-            if (!card) return;
-            
-            const button = card.querySelector('.tournament-action-button');
-            if (!button) return;
-            
-            // Check if tournament is live
-            if (now >= tournament.startTime && now <= tournament.endTime) {
-                // Tournament is LIVE
-                button.textContent = 'Watch Live';
-                button.href = tournament.liveUrl;
-                button.style.backgroundColor = '#FF0000'; // YouTube red
-                button.style.borderColor = '#FF0000';
-                button.onmouseover = function() { this.style.backgroundColor = '#CC0000'; };
-                button.onmouseout = function() { this.style.backgroundColor = '#FF0000'; };
-            } else if (now > tournament.endTime) {
-                // Tournament is over - hide the card
-                card.style.display = 'none';
-            } else {
-                // Tournament is upcoming - show register button
-                button.textContent = 'Register on Swish';
-                button.href = tournament.registerUrl;
-                // Keep default styling (blue or gold gradient)
-            }
-        });
-    }
-
-    // Check status on page load
-    checkTournamentStatus();
-
-    // Check every minute for status changes
-    setInterval(checkTournamentStatus, 60000);
-
         const mobileMenuButton = document.getElementById('mobile-menu-button');
         const mobileMenu = document.getElementById('mobile-menu');
 
@@ -513,262 +383,56 @@
         });
 
         // Email signup form submission
-        document.getElementById('email-signup-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const emailInput = document.getElementById('email-input');
-            const email = emailInput.value;
-            const successMessage = document.getElementById('success-message');
-            const errorMessage = document.getElementById('error-message');
-            const submitButton = this.querySelector('button[type="submit"]');
-            
-            // Hide any previous messages
-            successMessage.classList.add('hidden');
-            errorMessage.classList.add('hidden');
-            
-            // Disable button and show loading state
-            submitButton.disabled = true;
-            submitButton.textContent = 'Subscribing...';
-            
-            try {
-                // Submit to Google Form
-                const formData = new FormData();
-                formData.append('entry.427056354', email);
-                
-                await fetch('https://docs.google.com/forms/d/e/1FAIpQLSd0z3p3SmrU5H2NxYUYCeFdmXOaSJXfRGSlYd4nyfBh2zPteA/formResponse', {
-                    method: 'POST',
-                    body: formData,
-                    mode: 'no-cors'
+        document.addEventListener('DOMContentLoaded', function() {
+            const signupForm = document.getElementById('email-signup-form');
+            if (signupForm) {
+                signupForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const emailInput = document.getElementById('email-input');
+                    const email = emailInput.value;
+                    const successMessage = document.getElementById('success-message');
+                    const errorMessage = document.getElementById('error-message');
+                    const submitButton = this.querySelector('button[type="submit"]');
+                    
+                    // Hide any previous messages
+                    successMessage.classList.add('hidden');
+                    errorMessage.classList.add('hidden');
+                    
+                    // Disable button and show loading state
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Subscribing...';
+                    
+                    try {
+                        // Submit to Google Form
+                        const formData = new FormData();
+                        formData.append('entry.427056354', email);
+                        
+                        await fetch('https://docs.google.com/forms/d/e/1FAIpQLSd0z3p3SmrU5H2NxYUYCeFdmXOaSJXfRGSlYd4nyfBh2zPteA/formResponse', {
+                            method: 'POST',
+                            body: formData,
+                            mode: 'no-cors'
+                        });
+                        
+                        // Show success message
+                        successMessage.classList.remove('hidden');
+                        emailInput.value = '';
+                        
+                        // Reset button
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Subscribe';
+                        
+                    } catch (error) {
+                        // Show error message
+                        errorMessage.classList.remove('hidden');
+                        
+                        // Reset button
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Subscribe';
+                    }
                 });
-                
-                // Show success message
-                successMessage.classList.remove('hidden');
-                emailInput.value = '';
-                
-                // Reset button
-                submitButton.disabled = false;
-                submitButton.textContent = 'Subscribe';
-                
-            } catch (error) {
-                // Show error message
-                errorMessage.classList.remove('hidden');
-                
-                // Reset button
-                submitButton.disabled = false;
-                submitButton.textContent = 'Subscribe';
             }
         });
-
-        // Tournament Results Functionality
-        function toggleResults(tournamentId) {
-            const resultsDiv = document.getElementById(`${tournamentId}-results`);
-            const buttonText = document.getElementById(`${tournamentId}-button-text`);
-            
-            if (resultsDiv.classList.contains('hidden')) {
-                resultsDiv.classList.remove('hidden');
-                buttonText.textContent = 'Hide Results';
-                
-                // Load bracket if not already loaded
-                if (!resultsDiv.dataset.loaded) {
-                    loadTournamentBracket(tournamentId);
-                    resultsDiv.dataset.loaded = 'true';
-                }
-            } else {
-                resultsDiv.classList.add('hidden');
-                buttonText.textContent = 'View Results';
-            }
-        }
-
-        async function loadTournamentBracket(tournamentId) {
-            const csvUrls = {
-                'jan10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv',
-                'jan24': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=1866706696&single=true&output=csv'
-            };
-            
-            const csvUrl = csvUrls[tournamentId];
-            if (!csvUrl) return;
-            
-            try {
-                const response = await fetch(csvUrl);
-                const csvText = await response.text();
-                const data = parseCSV(csvText);
-                
-                if (data.length === 0) {
-                    document.getElementById(`${tournamentId}-bracket`).innerHTML = 
-                        '<p class="text-yellow-600">No match data found in spreadsheet</p>';
-                    return;
-                }
-                
-                renderBracket(tournamentId, data);
-            } catch (error) {
-                console.error('Error loading bracket:', error);
-                document.getElementById(`${tournamentId}-bracket`).innerHTML = 
-                    '<p class="text-red-500">Error loading bracket data</p>';
-            }
-        }
-
-        function parseCSV(csv) {
-            const lines = csv.split('\n').filter(line => line.trim());
-            const matches = [];
-            
-            // Skip header row (first line)
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i];
-                
-                // Use a more sophisticated CSV parser that handles quoted fields
-                const cells = [];
-                let currentCell = '';
-                let insideQuotes = false;
-                
-                for (let j = 0; j < line.length; j++) {
-                    const char = line[j];
-                    
-                    if (char === '"') {
-                        insideQuotes = !insideQuotes;
-                    } else if (char === ',' && !insideQuotes) {
-                        cells.push(currentCell.trim());
-                        currentCell = '';
-                    } else {
-                        currentCell += char;
-                    }
-                }
-                cells.push(currentCell.trim()); // Add the last cell
-                
-                // Check if this line has data (Round, Team1, Team2, Score)
-                if (cells[0] && cells[0].length > 0) {
-                    matches.push({
-                        round: cells[0],       // Column A: Round
-                        team1: cells[1] || '', // Column B: Team 1
-                        team2: cells[2] || '', // Column C: Team 2
-                        score: cells[3] || ''  // Column D: Score (including commas like "11-2, 11-6")
-                    });
-                }
-            }
-            
-            return matches;
-        }
-
-        function renderBracket(tournamentId, data) {
-            const bracketDiv = document.getElementById(`${tournamentId}-bracket`);
-            const championDiv = document.getElementById(`${tournamentId}-champion`);
-            
-            if (!bracketDiv) {
-                console.error('Bracket div not found:', `${tournamentId}-bracket`);
-                return;
-            }
-            
-            // Find quarterfinals, semifinals, and finals
-            const quarterfinals = data.filter(m => m.round.includes('QUARTERFINAL'));
-            const semifinals = data.filter(m => m.round.includes('SEMIFINAL'));
-            const goldMatch = data.find(m => m.round.includes('GOLD'));
-            const bronzeMatch = data.find(m => m.round.includes('BRONZE'));
-            
-            console.log('Quarterfinals:', quarterfinals);
-            console.log('Semifinals:', semifinals);
-            console.log('Gold match:', goldMatch);
-            console.log('Bronze match:', bronzeMatch);
-            
-            // Determine winners
-            const getWinner = (match) => {
-                if (!match.score) return null;
-                const scores = match.score.split('-').map(s => parseInt(s.trim()));
-                if (scores.length >= 2) {
-                    return scores[0] > scores[1] ? match.team1 : match.team2;
-                }
-                return null;
-            };
-            
-            // Set champion (only if championDiv exists)
-            if (championDiv && goldMatch) {
-                const champion = getWinner(goldMatch);
-                if (champion) {
-                    championDiv.textContent = champion;
-                }
-            }
-            
-            // Build bracket HTML with aligned headers
-            let html = '<div class="flex gap-4 overflow-x-auto pb-4" style="align-items: flex-start;">';
-            
-            // Quarterfinals
-            if (quarterfinals.length > 0) {
-                html += '<div class="bracket-round quarterfinals">';
-                quarterfinals.forEach(match => {
-                    const winner = getWinner(match);
-                    html += `
-                        <div class="bracket-match">
-                            <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
-                                <span>${match.team1}</span>
-                            </div>
-                            <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
-                                <span>${match.team2}</span>
-                            </div>
-                            <div class="text-xs text-gray-500 mt-1 text-center">${match.score}</div>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-            }
-            
-            // Semifinals
-            if (semifinals.length > 0) {
-                html += '<div class="bracket-round semifinals">';
-                semifinals.forEach(match => {
-                    const winner = getWinner(match);
-                    html += `
-                        <div class="bracket-match">
-                            <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
-                                <span>${match.team1}</span>
-                            </div>
-                            <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
-                                <span>${match.team2}</span>
-                            </div>
-                            <div class="text-xs text-gray-500 mt-1 text-center">${match.score}</div>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-            }
-            
-            // Finals
-            html += '<div class="bracket-round finals">';
-            
-            if (goldMatch) {
-                const winner = getWinner(goldMatch);
-                html += `
-                    <div class="bracket-match gold">
-                        <div class="text-xs font-bold text-center mb-2 text-sand">🥇 GOLD MATCH</div>
-                        <div class="bracket-team ${winner === goldMatch.team1 ? 'winner' : ''}">
-                            <span>${goldMatch.team1}</span>
-                        </div>
-                        <div class="bracket-team ${winner === goldMatch.team2 ? 'winner' : ''}">
-                            <span>${goldMatch.team2}</span>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1 text-center">${goldMatch.score}</div>
-                    </div>
-                `;
-            }
-            
-            if (bronzeMatch) {
-                const winner = getWinner(bronzeMatch);
-                html += `
-                    <div class="bracket-match bronze">
-                        <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
-                        <div class="bracket-team ${winner === bronzeMatch.team1 ? 'winner' : ''}">
-                            <span>${bronzeMatch.team1}</span>
-                        </div>
-                        <div class="bracket-team ${winner === bronzeMatch.team2 ? 'winner' : ''}">
-                            <span>${bronzeMatch.team2}</span>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1 text-center">${bronzeMatch.score}</div>
-                    </div>
-                `;
-            }
-            
-            html += '</div></div>';
-            
-            bracketDiv.innerHTML = html;
-        }
     </script>
-
 </body>
 </html>
