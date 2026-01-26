@@ -12,16 +12,16 @@ const getSheetURL = (gid) => `${SHEET_BASE_URL}?gid=${gid}&single=true&output=cs
 const TOURNAMENTS = {
     upcoming: [
         {
-            id: 'feb7-tournament',
-            title: 'Saturday February 7 Moneyball',
-            startTime: '2:00 PM',
+            id: 'feb28-tournament',
+            title: 'Saturday Moneyball',
+            startTime: '2:00 PM - Date TBD',
             location: 'The Picklr Westbrook',
             format: 'Coed Doubles',
-            skillLevel: 'DUPR 8.5 or below',
+            skillLevel: 'DUPR ?? or below',
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
-            registerUrl: 'https://link.swishsportsapp.com/GExth',
-            theme: 'gold', // 'blue' or 'gold'
+            registerUrl: '#',
+            theme: 'gold', 
             liveStart: new Date('2026-02-07T14:00:00'),
             liveEnd: new Date('2026-02-07T18:00:00')
         }
@@ -37,7 +37,7 @@ const TOURNAMENTS = {
             skillLevel: 'DUPR 9.25 or below',
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
-            theme: 'blue', // 'blue' or 'gold'
+            theme: 'blue',
             csvUrl: getSheetURL(1866706696),
             photoUrl: 'photos/winners-jan24.jpg'
         },
@@ -88,8 +88,8 @@ UPCOMING TOURNAMENT:
 
 RESULTS (COMPLETED TOURNAMENT):
 -------------------------------
-1. Create Google Sheet tab with results (just match data, no metadata needed!)
-2. Publish sheet tab as CSV
+1. Create Google Sheet tab with results
+2. Copy gid field from url to update csvUrl
 3. Upload winner photo to photos/ folder
 4. Copy template below
 5. Update all fields
@@ -105,7 +105,7 @@ RESULTS (COMPLETED TOURNAMENT):
     entryFee: '$15 per player',         // Cost
     prizeSplit: '50% - 30% - 20%',      // Prize distribution
     theme: 'blue',                      // 'blue' or 'gold'
-    csvUrl: 'https://docs.google.com/spreadsheets/d/e/YOUR_PUBLISHED_CSV_URL',
+    csvUrl: getSheetURL(gid_VALUE),    // gid value in sheets url
     photoUrl: 'photos/winners-feb15.jpg' // Path to winner photo
 }
 
