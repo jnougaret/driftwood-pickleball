@@ -21,7 +21,7 @@ const TOURNAMENTS = {
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
             registerUrl: '#',
-            theme: 'gold', 
+            theme: 'blue', 
             liveStart: new Date('2026-02-07T14:00:00'),
             liveEnd: new Date('2026-02-07T18:00:00')
         }
@@ -37,7 +37,7 @@ const TOURNAMENTS = {
             skillLevel: 'DUPR 9.25 or below',
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
-            theme: 'blue',
+            theme: 'gold',
             csvUrl: getSheetURL(1866706696),
             photoUrl: 'photos/winners-jan24.jpg'
         },
@@ -49,7 +49,7 @@ const TOURNAMENTS = {
             skillLevel: 'DUPR 9.5 or below',
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
-            theme: 'gold',
+            theme: 'blue',
             csvUrl: getSheetURL(0),
             photoUrl: 'photos/winners-jan10.jpeg'
         }
