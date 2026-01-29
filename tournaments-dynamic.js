@@ -148,7 +148,8 @@ function createTournamentCard(tournament, type) {
                             <h4 class="text-xl font-bold text-ocean-blue">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
                         </div>
-                        <div id="${tournament.id}-rounds-container" class="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"></div>
+                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"></div>
+                        <div id="${tournament.id}-round-indicators" class="mt-1 flex items-center justify-center gap-2"></div>
                     </div>
                 </div>
             </div>
@@ -662,7 +663,14 @@ async function fetchRoundRobin(tournamentId) {
 async function renderTournamentView(tournamentId) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!view || !roundsContainer) return;
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
+        if (activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
+            return;
+        }
+    }
 
     try {
         const data = await fetchRoundRobin(tournamentId);
@@ -751,16 +759,73 @@ async function renderTournamentView(tournamentId) {
             ` : '';
 
             return `
-                <div class="min-w-[290px] snap-center border rounded-xl p-4" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                     <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
                     <div class="space-y-4">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-gray-500">No matches scheduled.</div>' : '')}</div>
                 </div>
             `;
         }).join('');
+
+        if (indicators) {
+            indicators.innerHTML = rounds.map((round, index) => `
+                <button
+                    type="button"
+                    class="round-indicator ${index === 0 ? 'is-active' : ''}"
+                    aria-label="Go to round ${round}"
+                    onclick="scrollToRound('${tournamentId}', ${index})"
+                ></button>
+            `).join('');
+        }
+
+        if (!roundsContainer.dataset.scrollListener) {
+            roundsContainer.dataset.scrollListener = 'true';
+            let ticking = false;
+            roundsContainer.addEventListener('scroll', () => {
+                if (ticking) return;
+                ticking = true;
+                requestAnimationFrame(() => {
+                    updateRoundIndicator(tournamentId);
+                    ticking = false;
+                });
+            });
+        }
+
+        updateRoundIndicator(tournamentId);
     } catch (error) {
         console.error('Render tournament error:', error);
         view.classList.add('hidden');
     }
+}
+
+function scrollToRound(tournamentId, index) {
+    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    if (!roundsContainer) return;
+    const card = roundsContainer.children[index];
+    if (!card) return;
+    roundsContainer.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
+}
+
+function updateRoundIndicator(tournamentId) {
+    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
+    if (!roundsContainer || !indicators) return;
+    const cards = Array.from(roundsContainer.children);
+    if (!cards.length) return;
+
+    const scrollLeft = roundsContainer.scrollLeft;
+    let activeIndex = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    cards.forEach((card, index) => {
+        const distance = Math.abs(card.offsetLeft - scrollLeft);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            activeIndex = index;
+        }
+    });
+
+    Array.from(indicators.children).forEach((dot, index) => {
+        dot.classList.toggle('is-active', index === activeIndex);
+    });
 }
 
 const tournamentPollers = new Map();
@@ -885,7 +950,7 @@ async function renderRegistrationList(tournamentId) {
                 const removeButton = isAdmin
                     ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 ml-3">Remove</button>`
                     : '';
-                return `<div class="text-sm text-gray-700 leading-5 flex items-center justify-between"><span>${display}</span>${removeButton}</div>`;
+                return `<div class="text-sm text-gray-700 leading-5 flex items-center justify-between gap-3"><span class="flex-1">${display}</span>${removeButton}</div>`;
             }).join('');
 
             const needsPartner = doubles && players.length === 1;
@@ -895,7 +960,7 @@ async function renderRegistrationList(tournamentId) {
 
             return `
                 <div class="flex items-start justify-between py-3 border-t border-gray-300 first:border-t-0">
-                    <div class="space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
+                    <div class="flex-1 space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
                     ${joinButton}
                 </div>
             `;

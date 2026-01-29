@@ -237,6 +237,26 @@
             border-color: #9ca3af;
             color: #111827;
         }
+
+        .rounds-scroll {
+            scrollbar-width: none;
+        }
+
+        .rounds-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .round-indicator {
+            width: 36px;
+            height: 8px;
+            border-radius: 999px;
+            background: #1a3a52;
+            transition: background-color 0.2s ease;
+        }
+
+        .round-indicator.is-active {
+            background: #d9a03a;
+        }
     </style>
     <script src="tournaments-config.js"></script>
 </head>

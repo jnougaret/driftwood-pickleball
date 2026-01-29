@@ -17,19 +17,23 @@ async function getTeams(env, tournamentId) {
     const result = await env.DB.prepare(
         `SELECT t.id AS team_id,
                 GROUP_CONCAT(u.display_name, ' / ') AS team_name,
-                COUNT(u.id) AS player_count
+                COUNT(u.id) AS player_count,
+                SUM(COALESCE(u.doubles_rating, 0)) AS total_rating,
+                MIN(t.created_at) AS created_at
          FROM teams t
          LEFT JOIN team_members tm ON tm.team_id = t.id
          LEFT JOIN users u ON u.id = tm.user_id
          WHERE t.tournament_id = ?
          GROUP BY t.id
-         ORDER BY t.created_at ASC`
+         ORDER BY total_rating DESC, created_at ASC`
     ).bind(tournamentId).all();
 
     return (result.results || []).map(row => ({
         id: row.team_id,
         name: row.team_name || 'Open team',
-        playerCount: Number(row.player_count || 0)
+        playerCount: Number(row.player_count || 0),
+        rating: Number(row.total_rating || 0),
+        createdAt: row.created_at
     }));
 }
 
@@ -121,7 +125,16 @@ export async function onRequestPost({ request, env, params }) {
         'DELETE FROM round_robin_matches WHERE tournament_id = ?'
     ).bind(tournamentId).run();
 
-    const schedule = generateRoundRobinPairings(teams.map(t => t.id), rounds);
+    const sortedTeams = [...teams].sort((a, b) => {
+        if (b.rating !== a.rating) {
+            return b.rating - a.rating;
+        }
+        if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt) {
+            return a.createdAt.localeCompare(b.createdAt);
+        }
+        return 0;
+    });
+    const schedule = generateRoundRobinPairings(sortedTeams.map(t => t.id), rounds);
     const inserts = [];
     schedule.forEach((pairs, roundIndex) => {
         pairs.forEach(pair => {
