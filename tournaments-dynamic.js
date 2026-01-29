@@ -727,3 +727,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check status every minute
     setInterval(checkTournamentStatus, 60000);
 });
+
+window.addEventListener('auth:changed', () => {
+    const openPanels = document.querySelectorAll('[id$="-registration"]:not(.hidden)');
+    openPanels.forEach(panel => {
+        const tournamentId = panel.id.replace('-registration', '');
+        renderRegistrationList(tournamentId);
+    });
+});

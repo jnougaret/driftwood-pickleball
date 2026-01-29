@@ -61,6 +61,7 @@ window.addEventListener('load', async () => {
                 currentUser = null;
                 handleUnauthenticatedUser();
             }
+            window.dispatchEvent(new CustomEvent('auth:changed', { detail: { user: currentUser } }));
         });
 
         clerkReadyResolve(clerkInstance);
