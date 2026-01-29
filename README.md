@@ -43,6 +43,28 @@ driftwood-pickleball/
    - Select "Open with Live Server"
    - Site opens at `http://localhost:5500`
 
+### Database Migrations
+
+Schema migrations live in `migrations/`. For a clean local setup, run:
+
+```bash
+wrangler d1 execute driftwood-pickleball-db --local --file migrations/001_init.sql
+```
+
+### Local Pages + Functions (with auth)
+
+If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), add your Clerk secret to `.dev.vars` and use Wrangler:
+
+1. **Set local secrets**
+   - Open `.dev.vars`
+   - Set `CLERK_SECRET_KEY=your_clerk_secret`
+
+2. **Run Pages dev server**
+   ```bash
+   wrangler pages dev . --port 8788
+   ```
+   - Site opens at `http://localhost:8788`
+
 ## Deployment to Cloudflare Pages
 
 ### Initial Setup (One Time)

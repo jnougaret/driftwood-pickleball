@@ -3,5 +3,16 @@
   "compatibility_date": "2026-01-07",
   "assets": {
     "directory": "."
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "driftwood-pickleball-db",
+      "database_id": "591a75bb-4bae-4686-9276-327329378922"
+    }
+  ],
+  "vars": {
+    // Set via `.dev.vars` for local dev or `wrangler secret put` in production.
+    "CLERK_SECRET_KEY": ""
   }
 }

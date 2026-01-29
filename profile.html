@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Driftwood Pickleball</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚓</text></svg>">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Clerk Authentication SDK -->
+    <script
+        async
+        crossorigin="anonymous"
+        data-clerk-publishable-key="pk_test_dmFsdWVkLWNhbGYtMjEuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        src="https://valued-calf-21.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+        type="text/javascript"
+    ></script>
+
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ocean-blue': '#1a3a52',
+                        'ocean-teal': '#2d5a7b',
+                        'sand': '#d4a574',
+                        'driftwood': '#8b7355',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="index.html" class="text-2xl font-bold text-ocean-blue">Driftwood Pickleball</a>
+                </div>
+                <div class="flex space-x-8 items-center">
+                    <a href="index.html#tournaments" class="text-gray-700 hover:text-ocean-blue transition">Tournaments</a>
+                    <a href="index.html" class="text-gray-700 hover:text-ocean-blue transition">Home</a>
+                    <div id="auth-buttons"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Profile Section -->
+    <section class="py-12">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div id="loading-message" class="text-center py-12">
+                <p class="text-gray-600">Loading profile...</p>
+            </div>
+
+            <div id="not-authenticated" class="hidden text-center py-12">
+                <h2 class="text-3xl font-bold text-ocean-blue mb-4">Sign In Required</h2>
+                <p class="text-gray-600 mb-6">You need to sign in to access your profile.</p>
+                <button onclick="signIn()" class="bg-ocean-blue text-white px-6 py-3 rounded-lg hover:bg-ocean-teal transition font-semibold">
+                    Sign In
+                </button>
+            </div>
+
+            <div id="profile-form-container" class="hidden bg-white rounded-lg shadow-md p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl font-bold text-ocean-blue">Your Profile</h2>
+                    <button
+                        onclick="signOut()"
+                        class="text-red-600 hover:text-red-800 transition font-medium px-4 py-2 border border-red-600 rounded-lg hover:bg-red-50"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Email (from OAuth) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Email
+                        </label>
+                        <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                            <span id="email-display">-</span>
+                        </div>
+                    </div>
+
+                    <!-- DUPR Link Status -->
+                    <div id="dupr-not-linked" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <p class="text-gray-600 mb-4">Link your DUPR account to populate your profile information</p>
+                        <button
+                            onclick="linkDuprAccount()"
+                            id="link-dupr-button"
+                            class="bg-ocean-blue text-white px-6 py-3 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                        >
+                            Link DUPR Account
+                        </button>
+                    </div>
+
+                    <!-- Profile Information (populated after DUPR link) -->
+                    <div id="dupr-linked" class="hidden space-y-6">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                            <p class="text-green-800 font-medium">✓ DUPR Account Linked</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Name
+                            </label>
+                            <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                <span id="name-display">-</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                DUPR ID
+                            </label>
+                            <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                <span id="dupr-id-display">-</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Doubles Rating
+                                </label>
+                                <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                    <span id="doubles-rating-display">-</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Singles Rating
+                                </label>
+                                <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                    <span id="singles-rating-display">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onclick="unlinkDuprAccount()"
+                            class="text-red-600 hover:text-red-800 transition text-sm"
+                        >
+                            Unlink DUPR Account
+                        </button>
+                    </div>
+
+                    <div id="error-message" class="hidden p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="text-red-800 text-sm"></p>
+                    </div>
+
+                    <div id="success-message" class="hidden p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-green-800 text-sm"></p>
+                    </div>
+
+                    <div>
+                        <a
+                            href="index.html"
+                            class="block text-center border-2 border-ocean-blue text-ocean-blue px-6 py-3 rounded-lg hover:bg-gray-50 transition font-semibold"
+                        >
+                            Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- JavaScript -->
+    <script src="js/auth.js"></script>
+    <script>
+        // Auth bootstrap (centralized in auth.js)
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await window.authUtils.ready();
+
+                const clerk = window.authUtils.getClerkInstance();
+                const user = window.authUtils.getCurrentUser();
+
+                if (!clerk) {
+                    throw new Error('Authentication service failed to load');
+                }
+
+                if (user) {
+                    window.duprLinked = false;
+                    await loadProfile();
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('return') && window.duprLinked === true && params.get('source') === 'registration') {
+                        const returnUrl = params.get('return');
+                        if (returnUrl && !isSamePage(returnUrl)) {
+                            window.location.href = returnUrl;
+                        }
+                    }
+                } else {
+                    showNotAuthenticated();
+                }
+
+                updateAuthButtons();
+            } catch (error) {
+                console.error('Error initializing:', error);
+                document.getElementById('loading-message').classList.add('hidden');
+                showNotAuthenticated('Authentication service failed to load. Please refresh the page.');
+            }
+        });
+
+        // Load user profile from API
+        async function loadProfile() {
+            console.log('loadProfile() called');
+            try {
+                console.log('Getting auth token...');
+                const clerk = window.authUtils.getClerkInstance();
+                const token = await clerk.session.getToken();
+                console.log('Token obtained, fetching profile...');
+
+                const response = await fetch('/api/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Profile API response status:', response.status);
+
+                document.getElementById('loading-message').classList.add('hidden');
+                document.getElementById('profile-form-container').classList.remove('hidden');
+
+                // Populate email from Clerk
+                const user = window.authUtils.getCurrentUser();
+                const email = user.emailAddresses[0].emailAddress;
+                console.log('Email:', email);
+                document.getElementById('email-display').textContent = email;
+
+                if (response.ok) {
+                    // Profile exists - check if DUPR is linked
+                    const profile = await response.json();
+                    console.log('Profile loaded:', profile);
+
+                    if (profile.duprId) {
+                        // DUPR account is linked - show profile data
+                        console.log('DUPR linked, showing profile');
+                        window.duprLinked = true;
+                        showDuprLinked(profile);
+                    } else {
+                        // DUPR not linked - show link button
+                        console.log('DUPR not linked, showing link button');
+                        window.duprLinked = false;
+                        showDuprNotLinked();
+                    }
+                } else if (response.status === 404) {
+                    // New user - show DUPR link option
+                    console.log('New user (404), showing link button');
+                    window.duprLinked = false;
+                    showDuprNotLinked();
+                } else {
+                    const errorText = await response.text();
+                    console.error('Profile API error:', response.status, errorText);
+                    showError('Failed to load profile: ' + response.status);
+                    showDuprNotLinked();
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                document.getElementById('loading-message').classList.add('hidden');
+                document.getElementById('profile-form-container').classList.remove('hidden');
+                showError('Error: ' + error.message);
+                window.duprLinked = false;
+                showDuprNotLinked();
+            }
+        }
+
+        // Show DUPR not linked state
+        function showDuprNotLinked() {
+            document.getElementById('dupr-not-linked').classList.remove('hidden');
+            document.getElementById('dupr-linked').classList.add('hidden');
+            const linkButton = document.getElementById('link-dupr-button');
+            if (linkButton) {
+                linkButton.disabled = false;
+                linkButton.textContent = 'Link DUPR Account';
+            }
+        }
+
+        // Show DUPR linked state with profile data
+        function showDuprLinked(profile) {
+            document.getElementById('dupr-not-linked').classList.add('hidden');
+            document.getElementById('dupr-linked').classList.remove('hidden');
+
+            // Populate profile fields
+            document.getElementById('name-display').textContent = profile.displayName || '-';
+            document.getElementById('dupr-id-display').textContent = profile.duprId || '-';
+            document.getElementById('doubles-rating-display').textContent =
+                profile.doublesRating ? profile.doublesRating.toFixed(2) : '-';
+            document.getElementById('singles-rating-display').textContent =
+                profile.singlesRating ? profile.singlesRating.toFixed(2) : '-';
+        }
+
+        // Link DUPR account (placeholder - will use DUPR API in future)
+        async function linkDuprAccount() {
+            const button = document.getElementById('link-dupr-button');
+            button.disabled = true;
+            button.textContent = 'Linking...';
+
+            try {
+                // PLACEHOLDER: Simulate DUPR API call
+                // In production, this will open DUPR OAuth flow or iframe
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // PLACEHOLDER: Mock DUPR data
+                const currentUser = window.authUtils.getCurrentUser();
+                const defaultName = currentUser.firstName && currentUser.lastName
+                    ? `${currentUser.firstName} ${currentUser.lastName}`
+                    : currentUser.emailAddresses[0].emailAddress.split('@')[0];
+                const mockDuprData = {
+                    displayName: defaultName,
+                    duprId: 'DUPR000000',
+                    doublesRating: 4.5,
+                    singlesRating: 4.0
+                };
+
+                // Save to database
+                const clerk = window.authUtils.getClerkInstance();
+                const token = await clerk.session.getToken();
+                const response = await fetch('/api/auth/profile', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(mockDuprData)
+                });
+
+                if (response.ok) {
+                const result = await response.json();
+                showSuccess('DUPR account linked successfully!');
+                showDuprLinked(result.profile);
+                window.duprLinked = true;
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('return') && params.get('source') === 'registration') {
+                    const returnUrl = params.get('return');
+                    if (returnUrl && !isSamePage(returnUrl)) {
+                        window.location.href = returnUrl;
+                    }
+                }
+            } else {
+                    const error = await response.json();
+                    showError(error.error || 'Failed to link DUPR account');
+                    button.disabled = false;
+                    button.textContent = 'Link DUPR Account';
+                }
+            } catch (error) {
+                console.error('Error linking DUPR:', error);
+                showError('Failed to link DUPR account');
+                button.disabled = false;
+                button.textContent = 'Link DUPR Account';
+            }
+        }
+
+        // Unlink DUPR account
+        async function unlinkDuprAccount() {
+            if (!confirm('Are you sure you want to unlink your DUPR account?')) {
+                return;
+            }
+
+            try {
+                const clerk = window.authUtils.getClerkInstance();
+                const token = await clerk.session.getToken();
+                const response = await fetch('/api/auth/profile', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        displayName: 'User',
+                        duprId: null,
+                        doublesRating: null,
+                        singlesRating: null
+                    })
+                });
+
+                if (response.ok) {
+                    showSuccess('DUPR account unlinked');
+                    showDuprNotLinked();
+                } else {
+                    showError('Failed to unlink DUPR account');
+                }
+            } catch (error) {
+                console.error('Error unlinking DUPR:', error);
+                showError('Failed to unlink DUPR account');
+            }
+        }
+
+        function showNotAuthenticated(message) {
+            document.getElementById('loading-message').classList.add('hidden');
+            document.getElementById('not-authenticated').classList.remove('hidden');
+            if (message) {
+                document.getElementById('not-authenticated').querySelector('p').textContent = message;
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.querySelector('p').textContent = message;
+            errorDiv.classList.remove('hidden');
+            document.getElementById('success-message').classList.add('hidden');
+
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success-message');
+            successDiv.querySelector('p').textContent = message || 'Success!';
+            successDiv.classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+
+            setTimeout(() => {
+                successDiv.classList.add('hidden');
+            }, 3000);
+        }
+
+        function updateAuthButtons() {
+            const container = document.getElementById('auth-buttons');
+            if (!container) return;
+
+            const user = window.authUtils.getCurrentUser();
+            if (user) {
+                const userName = user.firstName || user.emailAddresses[0].emailAddress.split('@')[0];
+                container.innerHTML = `
+                    <span class="text-gray-700 font-medium">${userName}</span>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="signIn()" class="bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold">
+                        Sign In
+                    </button>
+                `;
+            }
+        }
+
+        async function signIn() {
+            await window.authUtils.signIn();
+        }
+
+        async function signOut() {
+            await window.authUtils.signOut();
+            window.location.href = 'index.html';
+        }
+
+        function isSamePage(returnUrl) {
+            try {
+                const resolved = new URL(returnUrl, window.location.origin);
+                if (resolved.pathname.startsWith('/profile')) {
+                    return true;
+                }
+                return resolved.pathname === window.location.pathname &&
+                    resolved.search === window.location.search;
+            } catch (error) {
+                return false;
+            }
+        }
+    </script>
+</body>
+</html>

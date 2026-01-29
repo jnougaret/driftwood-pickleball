@@ -71,9 +71,42 @@ function createTournamentCard(tournament, type) {
                         <span class="font-semibold">${tournament.prizeSplit}</span>
                     </div>
                 </div>
-                <a href="${tournament.registerUrl}" class="tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}">
-                    Register on Swish
+                <button
+                    onclick="toggleRegistration('${tournament.id}')"
+                    class="tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
+                >
+                    <span id="${tournament.id}-registration-button-text">View Registration</span>
+                </button>
+                <a
+                    id="${tournament.id}-live-link"
+                    href="https://www.youtube.com/@JoshuaNougaret/live"
+                    class="hidden mt-3 block w-full text-center font-semibold py-3 rounded-lg transition btn-live"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Watch Live
                 </a>
+            </div>
+
+            <!-- Expandable Registration -->
+            <div id="${tournament.id}-registration" class="hidden border-t-2 border-gray-200 bg-gray-50">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-xl font-bold text-ocean-blue">Registered Teams</h4>
+                        <span class="text-sm text-gray-500" id="${tournament.id}-registration-count">0 teams</span>
+                    </div>
+                    <div id="${tournament.id}-registration-list" class="space-y-3"></div>
+                    <div class="mt-6">
+                        <button
+                            id="${tournament.id}-registration-action"
+                            onclick="registerTeam('${tournament.id}')"
+                            class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
+                        >
+                            Register Team
+                        </button>
+                        <p class="text-xs text-gray-500 mt-2 text-center">No capacity limit for now.</p>
+                    </div>
+                </div>
             </div>
         `;
     } else if (type === 'results') {
@@ -151,26 +184,295 @@ function checkTournamentStatus() {
         const card = document.getElementById(tournament.id);
         if (!card) return;
         
-        const button = card.querySelector('.tournament-action-button');
-        if (!button) return;
-        
+        const liveLink = document.getElementById(`${tournament.id}-live-link`);
+
         // Check if tournament is live
         if (now >= tournament.liveStart && now <= tournament.liveEnd) {
-            // Tournament is LIVE
-            button.textContent = 'Watch Live';
-            button.href = 'https://www.youtube.com/@JoshuaNougaret/live';
-            button.className = 'tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition btn-live';
+            if (liveLink) {
+                liveLink.classList.remove('hidden');
+            }
         } else if (now > tournament.liveEnd) {
             // Tournament is over - hide the card
             card.style.display = 'none';
         } else {
-            // Tournament is upcoming - show register button
-            button.textContent = 'Register on Swish';
-            button.href = tournament.registerUrl;
-            const btnClass = tournament.theme === 'gold' ? 'btn-gold' : 'btn-blue';
-            button.className = `tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}`;
+            if (liveLink) {
+                liveLink.classList.add('hidden');
+            }
         }
     });
+}
+
+// ========================================
+// REGISTRATION MANAGEMENT
+// ========================================
+
+function isDoublesTournament(tournament) {
+    return /doubles/i.test(tournament.format || '');
+}
+
+const OPEN_REGISTRATION_KEY = 'openRegistrationId';
+const OPEN_REGISTRATION_SCROLL_KEY = 'openRegistrationScroll';
+
+function setOpenRegistration(tournamentId) {
+    localStorage.setItem(OPEN_REGISTRATION_KEY, tournamentId);
+    localStorage.setItem(OPEN_REGISTRATION_SCROLL_KEY, String(window.scrollY || 0));
+}
+
+function getOpenRegistration() {
+    return localStorage.getItem(OPEN_REGISTRATION_KEY);
+}
+
+function clearOpenRegistration() {
+    localStorage.removeItem(OPEN_REGISTRATION_KEY);
+    localStorage.removeItem(OPEN_REGISTRATION_SCROLL_KEY);
+}
+
+async function fetchRegistrations(tournamentId) {
+    const response = await fetch(`/api/registrations/${tournamentId}`);
+    if (!response.ok) {
+        throw new Error('Failed to load registrations');
+    }
+    const data = await response.json();
+    return data.teams || [];
+}
+
+async function toggleRegistration(tournamentId) {
+    const registrationDiv = document.getElementById(`${tournamentId}-registration`);
+    const buttonText = document.getElementById(`${tournamentId}-registration-button-text`);
+
+    if (!registrationDiv || !buttonText) return;
+
+    if (registrationDiv.classList.contains('hidden')) {
+        registrationDiv.classList.remove('hidden');
+        buttonText.textContent = 'Hide Registration';
+
+        if (!registrationDiv.dataset.loaded) {
+            await renderRegistrationList(tournamentId);
+            registrationDiv.dataset.loaded = 'true';
+        } else {
+            await renderRegistrationList(tournamentId);
+        }
+    } else {
+        registrationDiv.classList.add('hidden');
+        buttonText.textContent = 'View Registration';
+    }
+}
+
+async function requireAuth() {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (user) {
+        return user;
+    }
+    if (auth && auth.signIn) {
+        await auth.signIn();
+    } else {
+        alert('Please sign in to register.');
+    }
+    return null;
+}
+
+async function ensureDuprLinked() {
+    try {
+        const token = await window.authUtils.getAuthToken();
+        const response = await fetch('/api/auth/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 404) {
+            redirectToProfileForLink();
+            return false;
+        }
+
+        if (!response.ok) {
+            alert('Unable to verify profile status.');
+            return false;
+        }
+
+        const profile = await response.json();
+        if (!profile.duprId) {
+            redirectToProfileForLink();
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Profile check failed:', error);
+        alert('Unable to verify profile status.');
+        return false;
+    }
+}
+
+function redirectToProfileForLink() {
+    window.location.href = 'profile.html';
+}
+
+function formatRating(player, preferDoubles) {
+    const rating = preferDoubles ? player.doublesRating : player.singlesRating;
+    if (rating === null || rating === undefined || Number.isNaN(rating)) {
+        return '-';
+    }
+    return Number(rating).toFixed(2);
+}
+
+async function renderRegistrationList(tournamentId) {
+    const list = document.getElementById(`${tournamentId}-registration-list`);
+    const count = document.getElementById(`${tournamentId}-registration-count`);
+    if (!list || !count) return;
+
+    const tournament = TOURNAMENTS.upcoming.find(t => t.id === tournamentId);
+    const doubles = tournament ? isDoublesTournament(tournament) : false;
+    let teams = [];
+    try {
+        teams = await fetchRegistrations(tournamentId);
+    } catch (error) {
+        list.innerHTML = '<p class="text-sm text-red-500">Unable to load registrations.</p>';
+        count.textContent = '0 teams';
+        return;
+    }
+    const currentUser = window.authUtils && window.authUtils.getCurrentUser
+        ? window.authUtils.getCurrentUser()
+        : null;
+    const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
+    const isRegistered = currentUserId
+        ? teams.some(team => (team.players || []).some(player => player.id === currentUserId))
+        : false;
+
+    count.textContent = `${teams.length} team${teams.length === 1 ? '' : 's'}`;
+
+    if (!teams.length) {
+        list.innerHTML = '<p class="text-sm text-gray-500">No teams registered yet.</p>';
+    } else {
+        list.innerHTML = teams.map((team, index) => {
+            const players = team.players || [];
+        const playerLines = players.map(player => `
+            <div class="flex items-center justify-between text-sm text-gray-700">
+                <span>${player.name}</span>
+                <span class="text-gray-500">${formatRating(player, doubles)}</span>
+            </div>
+        `).join('');
+
+            const needsPartner = doubles && players.length === 1;
+            const joinButton = needsPartner
+                ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="mt-3 text-sm font-semibold text-ocean-blue hover:text-ocean-teal">Join Team</button>`
+                : '';
+
+            return `
+                <div class="border border-gray-200 rounded-lg bg-white p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-semibold text-gray-600">Team ${index + 1}</span>
+                        ${needsPartner ? '<span class="text-xs text-amber-600 font-medium">Needs partner</span>' : ''}
+                    </div>
+                    <div class="space-y-1">${playerLines || '<span class="text-sm text-gray-500">No players yet</span>'}</div>
+                    ${joinButton}
+                </div>
+            `;
+        }).join('');
+    }
+
+    const actionButton = document.getElementById(`${tournamentId}-registration-action`);
+    if (actionButton) {
+        if (isRegistered) {
+            actionButton.textContent = 'Leave Team';
+            actionButton.setAttribute('onclick', `leaveTeam('${tournamentId}')`);
+        } else {
+            actionButton.textContent = 'Register Team';
+            actionButton.setAttribute('onclick', `registerTeam('${tournamentId}')`);
+        }
+    }
+}
+
+async function registerTeam(tournamentId) {
+    setOpenRegistration(tournamentId);
+    const user = await requireAuth();
+    if (!user) return;
+    const linked = await ensureDuprLinked();
+    if (!linked) return;
+
+    try {
+        await submitRegistration({ action: 'create', tournamentId });
+    } catch (error) {
+        console.error('Register team error:', error);
+        alert('Failed to register team.');
+    }
+}
+
+async function joinTeam(tournamentId, teamIndex) {
+    setOpenRegistration(tournamentId);
+    const user = await requireAuth();
+    if (!user) return;
+    const linked = await ensureDuprLinked();
+    if (!linked) return;
+
+    const tournament = TOURNAMENTS.upcoming.find(t => t.id === tournamentId);
+    if (!tournament || !isDoublesTournament(tournament)) {
+        alert('This tournament is not a doubles event.');
+        return;
+    }
+
+    try {
+        const teams = await fetchRegistrations(tournamentId);
+        const team = teams[teamIndex];
+        if (!team) {
+            alert('This team is no longer available to join.');
+            return;
+        }
+
+        await submitRegistration({ action: 'join', tournamentId, teamId: team.id });
+    } catch (error) {
+        console.error('Join team error:', error);
+        alert('Failed to join team.');
+    }
+}
+
+async function submitRegistration({ action, tournamentId, teamId }) {
+    const token = await window.authUtils.getAuthToken();
+    const response = await fetch(`/api/registrations/${tournamentId}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action, teamId })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to update registration.');
+        return false;
+    }
+
+    await renderRegistrationList(tournamentId);
+    return true;
+}
+
+async function leaveTeam(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) {
+        if (auth && auth.signIn) {
+            await auth.signIn();
+        } else {
+            alert('Please sign in to manage registration.');
+        }
+        return;
+    }
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/registrations/${tournamentId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Failed to leave team.');
+            return;
+        }
+        await renderRegistrationList(tournamentId);
+    } catch (error) {
+        console.error('Leave team error:', error);
+        alert('Failed to leave team.');
+    }
 }
 
 // ========================================
@@ -409,6 +711,17 @@ document.addEventListener('DOMContentLoaded', function() {
     renderUpcomingTournaments();
     renderResults();
     checkTournamentStatus();
+    const openRegistrationId = getOpenRegistration();
+    if (openRegistrationId) {
+        toggleRegistration(openRegistrationId);
+        const savedScroll = Number(localStorage.getItem(OPEN_REGISTRATION_SCROLL_KEY));
+        if (Number.isFinite(savedScroll)) {
+            requestAnimationFrame(() => {
+                window.scrollTo({ top: savedScroll, behavior: 'auto' });
+            });
+        }
+        clearOpenRegistration();
+    }
     
     // Check status every minute
     setInterval(checkTournamentStatus, 60000);
