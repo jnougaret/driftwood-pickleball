@@ -143,7 +143,7 @@ function createTournamentCard(tournament, type) {
                         </button>
                         <p class="text-xs text-gray-500 mt-2 text-center" id="${tournament.id}-capacity-note">No capacity limit for now.</p>
                     </div>
-                    <div id="${tournament.id}-tournament-view" class="hidden">
+                    <div id="${tournament.id}-tournament-view" class="hidden tournament-view-block">
                         <div class="flex items-center justify-between mb-4">
                             <h4 class="text-xl font-bold text-ocean-blue">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
