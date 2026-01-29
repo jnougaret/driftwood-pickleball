@@ -342,31 +342,32 @@ async function renderRegistrationList(tournamentId) {
     if (!teams.length) {
         list.innerHTML = '<p class="text-sm text-gray-500">No teams registered yet.</p>';
     } else {
-        list.innerHTML = teams.map((team, index) => {
+        const rows = teams.map((team, index) => {
             const players = team.players || [];
-        const playerLines = players.map(player => `
-            <div class="flex items-center justify-between text-sm text-gray-700">
-                <span>${player.name}</span>
-                <span class="text-gray-500">${formatRating(player, doubles)}</span>
-            </div>
-        `).join('');
+            const playerLines = players.map(player => {
+                const rating = formatRating(player, doubles);
+                const display = rating !== '-' ? `${player.name} (${rating})` : player.name;
+                return `<div class="text-sm text-gray-700 leading-5">${display}</div>`;
+            }).join('');
 
             const needsPartner = doubles && players.length === 1;
             const joinButton = needsPartner
-                ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="mt-3 text-sm font-semibold text-ocean-blue hover:text-ocean-teal">Join Team</button>`
+                ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal">Join</button>`
                 : '';
 
             return `
-                <div class="border border-gray-200 rounded-lg bg-white p-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-semibold text-gray-600">Team ${index + 1}</span>
-                        ${needsPartner ? '<span class="text-xs text-amber-600 font-medium">Needs partner</span>' : ''}
-                    </div>
-                    <div class="space-y-1">${playerLines || '<span class="text-sm text-gray-500">No players yet</span>'}</div>
+                <div class="flex items-start justify-between py-3 border-t border-gray-300 first:border-t-0">
+                    <div class="space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
                     ${joinButton}
                 </div>
             `;
         }).join('');
+
+        list.innerHTML = `
+            <div class="border border-gray-200 rounded-lg bg-white px-4">
+                ${rows}
+            </div>
+        `;
     }
 
     const actionButton = document.getElementById(`${tournamentId}-registration-action`);
