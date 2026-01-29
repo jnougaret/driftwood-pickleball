@@ -342,12 +342,16 @@ async function renderRegistrationList(tournamentId) {
     if (!teams.length) {
         list.innerHTML = '<p class="text-sm text-gray-500">No teams registered yet.</p>';
     } else {
+        const isAdmin = window.authProfile && window.authProfile.isAdmin;
         const rows = teams.map((team, index) => {
             const players = team.players || [];
             const playerLines = players.map(player => {
                 const rating = formatRating(player, doubles);
                 const display = rating !== '-' ? `${player.name} (${rating})` : player.name;
-                return `<div class="text-sm text-gray-700 leading-5">${display}</div>`;
+                const removeButton = isAdmin
+                    ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 ml-3">Remove</button>`
+                    : '';
+                return `<div class="text-sm text-gray-700 leading-5 flex items-center justify-between"><span>${display}</span>${removeButton}</div>`;
             }).join('');
 
             const needsPartner = doubles && players.length === 1;
@@ -473,6 +477,41 @@ async function leaveTeam(tournamentId) {
     } catch (error) {
         console.error('Leave team error:', error);
         alert('Failed to leave team.');
+    }
+}
+
+async function removePlayer(tournamentId, userId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) {
+        if (auth && auth.signIn) {
+            await auth.signIn();
+        } else {
+            alert('Please sign in to manage registrations.');
+        }
+        return;
+    }
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch('/api/admin/registrations/remove', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ tournamentId, userId })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Failed to remove player.');
+            return;
+        }
+        await renderRegistrationList(tournamentId);
+    } catch (error) {
+        console.error('Remove player error:', error);
+        alert('Failed to remove player.');
     }
 }
 
@@ -722,6 +761,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         clearOpenRegistration();
+    }
+    if (window.authUtils && window.authUtils.loadAuthProfile) {
+        window.authUtils.loadAuthProfile().then(() => {
+            const openPanels = document.querySelectorAll('[id$="-registration"]:not(.hidden)');
+            openPanels.forEach(panel => {
+                const tournamentId = panel.id.replace('-registration', '');
+                renderRegistrationList(tournamentId);
+            });
+        });
     }
     
     // Check status every minute

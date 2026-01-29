@@ -109,6 +109,7 @@ async function handleProfileUpdate(request, env) {
             headers: { 'Content-Type': 'application/json' }
         });
     }
+    const isMasterAdmin = env.MASTER_ADMIN_EMAIL && email.toLowerCase() === env.MASTER_ADMIN_EMAIL.toLowerCase();
 
     // Parse request body
     let body;
@@ -134,15 +135,24 @@ async function handleProfileUpdate(request, env) {
     try {
         // Insert or update user profile
         await env.DB.prepare(`
-            INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 display_name = excluded.display_name,
                 dupr_id = excluded.dupr_id,
                 doubles_rating = excluded.doubles_rating,
                 singles_rating = excluded.singles_rating,
+                is_admin = CASE WHEN excluded.is_admin = 1 THEN 1 ELSE users.is_admin END,
                 updated_at = CURRENT_TIMESTAMP
-        `).bind(userId, email, displayName, duprId || null, doublesRating || null, singlesRating || null).run();
+        `).bind(
+            userId,
+            email,
+            displayName,
+            duprId || null,
+            doublesRating || null,
+            singlesRating || null,
+            isMasterAdmin ? 1 : 0
+        ).run();
 
         if (duprId === null) {
             // Remove user from all teams if they unlink DUPR

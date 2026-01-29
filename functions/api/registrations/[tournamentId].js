@@ -7,7 +7,14 @@ function jsonResponse(body, status = 200) {
     });
 }
 
+async function ensureRateLimitTable(env) {
+    await env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at DATETIME NOT NULL)'
+    ).run();
+}
+
 async function checkRateLimit(env, key, limit = 10, windowSeconds = 60) {
+    await ensureRateLimitTable(env);
     const now = new Date();
     const existing = await env.DB.prepare(
         'SELECT count, reset_at FROM rate_limits WHERE key = ?'

@@ -13,6 +13,7 @@
   ],
   "vars": {
     // Set via `.dev.vars` for local dev or `wrangler secret put` in production.
-    "CLERK_SECRET_KEY": ""
+    "CLERK_SECRET_KEY": "",
+    "MASTER_ADMIN_EMAIL": "joshua.nougaret@gmail.com"
   }
 }

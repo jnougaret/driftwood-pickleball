@@ -160,6 +160,30 @@
                         <p class="text-green-800 text-sm"></p>
                     </div>
 
+                    <div id="admin-tools" class="hidden border-t border-gray-200 pt-6">
+                        <h3 class="text-xl font-bold text-ocean-blue mb-4">Admin Tools</h3>
+                        <p class="text-sm text-gray-600 mb-4">Grant admin access by email.</p>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input
+                                type="email"
+                                id="admin-email-input"
+                                placeholder="user@example.com"
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-ocean-blue"
+                            >
+                            <button
+                                id="grant-admin-button"
+                                onclick="grantAdmin()"
+                                class="bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                            >
+                                Grant Admin
+                            </button>
+                        </div>
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold text-ocean-blue mb-3">Current Admins</h4>
+                            <div id="admin-list" class="border border-gray-200 rounded-lg bg-white divide-y divide-gray-200"></div>
+                        </div>
+                    </div>
+
                     <div>
                         <a
                             href="index.html"
@@ -282,6 +306,7 @@
                 linkButton.disabled = false;
                 linkButton.textContent = 'Link DUPR Account';
             }
+            updateAdminToolsVisibility();
         }
 
         // Show DUPR linked state with profile data
@@ -296,6 +321,7 @@
                 profile.doublesRating ? profile.doublesRating.toFixed(2) : '-';
             document.getElementById('singles-rating-display').textContent =
                 profile.singlesRating ? profile.singlesRating.toFixed(2) : '-';
+            updateAdminToolsVisibility();
         }
 
         // Link DUPR account (placeholder - will use DUPR API in future)
@@ -440,6 +466,120 @@
                         Sign In
                     </button>
                 `;
+            }
+        }
+
+        async function updateAdminToolsVisibility() {
+            const adminTools = document.getElementById('admin-tools');
+            if (!adminTools || !currentUser) return;
+            try {
+                const token = await window.authUtils.getAuthToken();
+                const response = await fetch('/api/admin/list', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) {
+                    adminTools.classList.add('hidden');
+                    return;
+                }
+                const data = await response.json();
+                adminTools.classList.remove('hidden');
+                window.masterAdminEmail = data.masterEmail || '';
+                loadAdminList(data.admins || []);
+            } catch (error) {
+                adminTools.classList.add('hidden');
+            }
+        }
+
+        async function grantAdmin() {
+            const emailInput = document.getElementById('admin-email-input');
+            const email = emailInput.value.trim();
+            if (!email) {
+                showError('Please enter an email address.');
+                return;
+            }
+
+            try {
+                const token = await window.authUtils.getAuthToken();
+                const response = await fetch('/api/admin/grant', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.error || 'Failed to grant admin.');
+                    return;
+                }
+
+                showSuccess('Admin access granted.');
+                emailInput.value = '';
+                updateAdminToolsVisibility();
+            } catch (error) {
+                console.error('Grant admin error:', error);
+                showError('Failed to grant admin.');
+            }
+        }
+
+        async function loadAdminList(prefetchedAdmins) {
+            try {
+                const admins = prefetchedAdmins || [];
+                const list = document.getElementById('admin-list');
+                if (!list) return;
+
+                if (!admins.length) {
+                    list.innerHTML = '<div class="p-3 text-sm text-gray-500">No admins found.</div>';
+                    return;
+                }
+
+                list.innerHTML = admins.map(admin => {
+                    const email = admin.email || '';
+                    const masterEmail = (window.masterAdminEmail || '').toLowerCase();
+                    const isMaster = masterEmail && email.toLowerCase() === masterEmail;
+                    const revokeButton = isMaster
+                        ? '<span class="text-xs text-gray-400">Master</span>'
+                        : `<button onclick="revokeAdmin('${email}')" class="text-xs text-red-600 hover:text-red-800">Revoke</button>`;
+
+                    return `
+                        <div class="flex items-center justify-between p-3 text-sm text-gray-700">
+                            <span>${admin.display_name ? `${admin.display_name} (${email})` : email}</span>
+                            ${revokeButton}
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Load admin list error:', error);
+            }
+        }
+
+        async function revokeAdmin(email) {
+            try {
+                const token = await window.authUtils.getAuthToken();
+                const response = await fetch('/api/admin/revoke', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.error || 'Failed to revoke admin.');
+                    return;
+                }
+
+                showSuccess('Admin access revoked.');
+                updateAdminToolsVisibility();
+            } catch (error) {
+                console.error('Revoke admin error:', error);
+                showError('Failed to revoke admin.');
             }
         }
 

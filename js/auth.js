@@ -73,6 +73,26 @@ window.addEventListener('load', async () => {
 });
 
 // Handle authenticated user state
+async function loadAuthProfile() {
+    try {
+        const token = await clerkInstance.session.getToken();
+        const response = await fetch('/api/auth/profile', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const profile = await response.json();
+            window.authProfile = profile;
+        }
+        return response;
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        return null;
+    }
+}
+
 async function handleAuthenticatedUser() {
     console.log('User signed in:', currentUser);
 
@@ -91,32 +111,23 @@ async function handleAuthenticatedUser() {
     const shouldRedirectAfterSignIn = sessionStorage.getItem('redirectToProfileOnSignIn') === '1';
     sessionStorage.removeItem('redirectToProfileOnSignIn');
 
-    // Check if user profile exists in our database
-    try {
-        const token = await clerkInstance.session.getToken();
-        const response = await fetch('/api/auth/profile', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
+    const response = await loadAuthProfile();
+    if (!response) {
+        return;
+    }
 
-        if (response.status === 404) {
-            // User doesn't have a profile yet - redirect to profile creation
-            console.log('New user - redirecting to profile creation');
+    if (response.status === 404) {
+        // User doesn't have a profile yet - redirect to profile creation
+        console.log('New user - redirecting to profile creation');
+        if (shouldRedirectAfterSignIn) {
+            redirectToProfileForLink();
+        }
+    } else if (response.ok && window.authProfile) {
+        if (!window.authProfile.duprId) {
             if (shouldRedirectAfterSignIn) {
                 redirectToProfileForLink();
             }
-        } else if (response.ok) {
-            const profile = await response.json();
-            console.log('User profile loaded:', profile);
-            if (!profile.duprId) {
-                if (shouldRedirectAfterSignIn) {
-                    redirectToProfileForLink();
-                }
-            }
         }
-    } catch (error) {
-        console.error('Error loading user profile:', error);
     }
 }
 
@@ -228,6 +239,7 @@ window.authUtils = {
     getAuthToken,
     isAuthenticated,
     getCurrentUser,
+    loadAuthProfile,
     signIn,
     signOut
 };
