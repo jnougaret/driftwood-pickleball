@@ -91,6 +91,46 @@ CREATE TABLE rate_limits (
   reset_at DATETIME NOT NULL
 );
 
+-- Tournament settings table: admin-managed tournament config
+CREATE TABLE tournament_settings (
+  tournament_id TEXT PRIMARY KEY,
+  max_teams INTEGER NOT NULL,
+  rounds INTEGER NOT NULL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+);
+
+-- Tournament state table: registration vs tournament mode
+CREATE TABLE tournament_state (
+  tournament_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  started_at DATETIME,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+);
+
+-- Round robin matches and scores
+CREATE TABLE round_robin_matches (
+  id TEXT PRIMARY KEY,
+  tournament_id TEXT NOT NULL,
+  round_number INTEGER NOT NULL,
+  team1_id TEXT NOT NULL,
+  team2_id TEXT NOT NULL,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+  FOREIGN KEY (team1_id) REFERENCES teams(id) ON DELETE CASCADE,
+  FOREIGN KEY (team2_id) REFERENCES teams(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_round_robin_matches_tournament ON round_robin_matches(tournament_id);
+CREATE INDEX idx_round_robin_matches_round ON round_robin_matches(tournament_id, round_number);
+
+CREATE TABLE round_robin_scores (
+  match_id TEXT PRIMARY KEY,
+  score1 INTEGER,
+  score2 INTEGER,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_id) REFERENCES round_robin_matches(id) ON DELETE CASCADE
+);
+
 -- Admin actions table: audit log for admin activities
 CREATE TABLE admin_actions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

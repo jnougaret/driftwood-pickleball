@@ -74,6 +74,9 @@ window.addEventListener('load', async () => {
 
 // Handle authenticated user state
 async function loadAuthProfile() {
+    if (!clerkInstance || !clerkInstance.session) {
+        return null;
+    }
     try {
         const token = await clerkInstance.session.getToken();
         const response = await fetch('/api/auth/profile', {

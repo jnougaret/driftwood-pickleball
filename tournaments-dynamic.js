@@ -89,14 +89,51 @@ function createTournamentCard(tournament, type) {
             </div>
 
             <!-- Expandable Registration -->
-            <div id="${tournament.id}-registration" class="hidden border-t-2 border-gray-200 bg-gray-50">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-4">
+            <div id="${tournament.id}-registration" class="hidden border-t-2 border-gray-200 bg-gray-200">
+                <div class="p-6 space-y-5">
+                    <div id="${tournament.id}-admin-settings" class="hidden border border-gray-200 rounded-lg bg-white p-4">
+                        <h4 class="text-lg font-semibold text-ocean-blue mb-3">Tournament Settings</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-gray-700">Max Teams</span>
+                                    <span class="text-sm text-gray-500" id="${tournament.id}-max-teams-value">12</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="6"
+                                    max="16"
+                                    step="1"
+                                    value="12"
+                                    id="${tournament.id}-max-teams"
+                                    class="w-full"
+                                    oninput="updateMaxTeams('${tournament.id}', this.value)"
+                                >
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-gray-700"># of Rounds</span>
+                                    <span class="text-sm text-gray-500" id="${tournament.id}-rounds-value">6</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="4"
+                                    max="10"
+                                    step="1"
+                                    value="6"
+                                    id="${tournament.id}-rounds"
+                                    class="w-full"
+                                    oninput="updateRounds('${tournament.id}', this.value)"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-4" id="${tournament.id}-registration-header">
                         <h4 class="text-xl font-bold text-ocean-blue">Registered Teams</h4>
                         <span class="text-sm text-gray-500" id="${tournament.id}-registration-count">0 teams</span>
                     </div>
                     <div id="${tournament.id}-registration-list" class="space-y-3"></div>
-                    <div class="mt-6">
+                    <div class="mt-6" id="${tournament.id}-registration-actions">
                         <button
                             id="${tournament.id}-registration-action"
                             onclick="registerTeam('${tournament.id}')"
@@ -104,7 +141,14 @@ function createTournamentCard(tournament, type) {
                         >
                             Register Team
                         </button>
-                        <p class="text-xs text-gray-500 mt-2 text-center">No capacity limit for now.</p>
+                        <p class="text-xs text-gray-500 mt-2 text-center" id="${tournament.id}-capacity-note">No capacity limit for now.</p>
+                    </div>
+                    <div id="${tournament.id}-tournament-view" class="hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-xl font-bold text-ocean-blue">Round Robin</h4>
+                            <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
+                        </div>
+                        <div id="${tournament.id}-rounds-container" class="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"></div>
                     </div>
                 </div>
             </div>
@@ -236,6 +280,39 @@ async function fetchRegistrations(tournamentId) {
     return data.teams || [];
 }
 
+async function fetchTournamentSettings(tournamentId) {
+    const response = await fetch(`/api/tournaments/settings/${tournamentId}`);
+    if (!response.ok) {
+        throw new Error('Failed to load settings');
+    }
+    const data = await response.json();
+    if (data) {
+        localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
+            maxTeams: data.maxTeams,
+            rounds: data.rounds,
+            status: data.status
+        }));
+    }
+    return data;
+}
+
+async function saveTournamentSettings(tournamentId, settings) {
+    const token = await window.authUtils.getAuthToken();
+    const response = await fetch(`/api/tournaments/settings/${tournamentId}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save settings');
+    }
+}
+
 async function toggleRegistration(tournamentId) {
     const registrationDiv = document.getElementById(`${tournamentId}-registration`);
     const buttonText = document.getElementById(`${tournamentId}-registration-button-text`);
@@ -244,17 +321,28 @@ async function toggleRegistration(tournamentId) {
 
     if (registrationDiv.classList.contains('hidden')) {
         registrationDiv.classList.remove('hidden');
-        buttonText.textContent = 'Hide Registration';
-
         if (!registrationDiv.dataset.loaded) {
             await renderRegistrationList(tournamentId);
+            await loadAdminSettings(tournamentId);
             registrationDiv.dataset.loaded = 'true';
         } else {
             await renderRegistrationList(tournamentId);
+            await loadAdminSettings(tournamentId);
+        }
+        const tournamentView = document.getElementById(`${tournamentId}-tournament-view`);
+        buttonText.textContent = tournamentView && !tournamentView.classList.contains('hidden')
+            ? 'Hide Tournament'
+            : 'Hide Registration';
+        if (tournamentView && !tournamentView.classList.contains('hidden')) {
+            startTournamentPolling(tournamentId);
         }
     } else {
         registrationDiv.classList.add('hidden');
-        buttonText.textContent = 'View Registration';
+        const tournamentView = document.getElementById(`${tournamentId}-tournament-view`);
+        buttonText.textContent = tournamentView && !tournamentView.classList.contains('hidden')
+            ? 'View Tournament'
+            : 'View Registration';
+        stopTournamentPolling(tournamentId);
     }
 }
 
@@ -306,12 +394,449 @@ function redirectToProfileForLink() {
     window.location.href = 'profile.html';
 }
 
+function adminSettingsMarkup(tournamentId) {
+    return `
+        <div id="${tournamentId}-admin-settings" class="hidden border border-gray-200 rounded-lg bg-white p-4">
+            <h4 class="text-lg font-semibold text-ocean-blue mb-3">Tournament Settings</h4>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700">Max Teams</span>
+                        <span class="text-sm text-gray-500" id="${tournamentId}-max-teams-value">12</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="6"
+                        max="16"
+                        step="1"
+                        value="12"
+                        id="${tournamentId}-max-teams"
+                        class="w-full"
+                        oninput="updateMaxTeams('${tournamentId}', this.value)"
+                    >
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700"># of Rounds</span>
+                        <span class="text-sm text-gray-500" id="${tournamentId}-rounds-value">6</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="4"
+                        max="10"
+                        step="1"
+                        value="6"
+                        id="${tournamentId}-rounds"
+                        class="w-full"
+                        oninput="updateRounds('${tournamentId}', this.value)"
+                    >
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function ensureAdminSettings(tournamentId) {
+    if (!window.authProfile || !window.authProfile.isAdmin) return;
+    const existing = document.getElementById(`${tournamentId}-admin-settings`);
+    if (existing) return;
+    const registration = document.getElementById(`${tournamentId}-registration`);
+    if (!registration) return;
+    const container = registration.querySelector('.p-6');
+    if (!container) return;
+    container.insertAdjacentHTML('afterbegin', adminSettingsMarkup(tournamentId));
+}
+
 function formatRating(player, preferDoubles) {
     const rating = preferDoubles ? player.doublesRating : player.singlesRating;
     if (rating === null || rating === undefined || Number.isNaN(rating)) {
         return '-';
     }
     return Number(rating).toFixed(2);
+}
+
+function formatTeamNameLines(name) {
+    if (!name) {
+        return '<div class="text-sm text-gray-700">Team</div>';
+    }
+    const parts = String(name).split(' / ').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) {
+        return '<div class="text-sm text-gray-700">Team</div>';
+    }
+    return `
+        <div class="space-y-1 text-sm text-gray-700">
+            ${parts.map(part => `<div>${part}</div>`).join('')}
+        </div>
+    `;
+}
+
+async function loadAdminSettings(tournamentId) {
+    const settingsContainer = document.getElementById(`${tournamentId}-admin-settings`);
+    if (!settingsContainer) return;
+    if (!window.authProfile || !window.authProfile.isAdmin) {
+        settingsContainer.classList.add('hidden');
+        return;
+    }
+
+    try {
+        const teams = await fetchRegistrations(tournamentId);
+        const currentTeamsCount = teams.length;
+        const cached = localStorage.getItem(`tournament-settings-${tournamentId}`);
+        const cachedSettings = cached ? JSON.parse(cached) : null;
+        if (cachedSettings) {
+            applySettingsToInputs(tournamentId, cachedSettings, currentTeamsCount);
+        }
+        const settings = await fetchTournamentSettings(tournamentId);
+        settingsContainer.classList.remove('hidden');
+        applySettingsToInputs(tournamentId, settings, currentTeamsCount);
+    } catch (error) {
+        console.error('Load settings error:', error);
+        settingsContainer.classList.add('hidden');
+    }
+}
+
+function applySettingsToInputs(tournamentId, settings, minTeams) {
+    const maxTeamsInput = document.getElementById(`${tournamentId}-max-teams`);
+    const roundsInput = document.getElementById(`${tournamentId}-rounds`);
+    const maxTeamsValue = document.getElementById(`${tournamentId}-max-teams-value`);
+    const roundsValue = document.getElementById(`${tournamentId}-rounds-value`);
+
+    if (maxTeamsInput && maxTeamsValue && Number.isInteger(settings.maxTeams)) {
+        const minValue = Math.max(6, Number.isInteger(minTeams) ? minTeams : 6);
+        maxTeamsInput.min = minValue;
+        const safeMaxTeams = Math.max(minValue, settings.maxTeams);
+        maxTeamsInput.value = safeMaxTeams;
+        maxTeamsValue.textContent = safeMaxTeams;
+        const capacityNote = document.getElementById(`${tournamentId}-capacity-note`);
+        if (capacityNote) {
+            capacityNote.textContent = safeMaxTeams === 6
+                ? '6 team maximum'
+                : `${safeMaxTeams} team maximum`;
+        }
+    }
+
+    if (roundsInput && roundsValue && Number.isInteger(settings.rounds)) {
+        roundsInput.min = 4;
+        roundsInput.max = 10;
+        const safeRounds = Math.min(10, Math.max(4, settings.rounds));
+        roundsInput.value = safeRounds;
+        roundsValue.textContent = safeRounds;
+    }
+}
+
+async function updateMaxTeams(tournamentId, value) {
+    const maxTeams = Number(value);
+    const maxTeamsValue = document.getElementById(`${tournamentId}-max-teams-value`);
+    const roundsInput = document.getElementById(`${tournamentId}-rounds`);
+    const capacityNote = document.getElementById(`${tournamentId}-capacity-note`);
+    if (maxTeamsValue) {
+        maxTeamsValue.textContent = maxTeams;
+    }
+    if (capacityNote) {
+        capacityNote.textContent = maxTeams === 6
+            ? '6 team maximum'
+            : `${maxTeams} team maximum`;
+    }
+    if (roundsInput) {
+        roundsInput.min = 4;
+        roundsInput.max = 10;
+        if (Number(roundsInput.value) > 10) {
+            roundsInput.value = 10;
+        }
+        if (Number(roundsInput.value) < 4) {
+            roundsInput.value = 4;
+        }
+        const roundsValue = document.getElementById(`${tournamentId}-rounds-value`);
+        if (roundsValue) {
+            roundsValue.textContent = roundsInput.value;
+        }
+    }
+
+    await persistSettings(tournamentId);
+}
+
+async function updateRounds(tournamentId, value) {
+    const roundsValue = document.getElementById(`${tournamentId}-rounds-value`);
+    if (roundsValue) {
+        roundsValue.textContent = value;
+    }
+    await persistSettings(tournamentId);
+}
+
+let settingsSaveTimeout;
+const pendingSettings = new Set();
+
+async function persistSettings(tournamentId) {
+    pendingSettings.add(tournamentId);
+    clearTimeout(settingsSaveTimeout);
+    settingsSaveTimeout = setTimeout(() => {
+        flushSettingsSaves();
+    }, 300);
+}
+
+async function flushSettingsSaves() {
+    const tournaments = Array.from(pendingSettings);
+    pendingSettings.clear();
+    await Promise.all(tournaments.map(async tournamentId => {
+        const maxTeamsInput = document.getElementById(`${tournamentId}-max-teams`);
+        const roundsInput = document.getElementById(`${tournamentId}-rounds`);
+        if (!maxTeamsInput || !roundsInput) return;
+        try {
+            await saveTournamentSettings(tournamentId, {
+                maxTeams: Number(maxTeamsInput.value),
+                rounds: Number(roundsInput.value)
+            });
+            localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
+                maxTeams: Number(maxTeamsInput.value),
+                rounds: Number(roundsInput.value)
+            }));
+        } catch (error) {
+            console.error('Save settings error:', error);
+        }
+    }));
+}
+
+async function startRoundRobin(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/round-robin/start/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Unable to start round robin.');
+            return;
+        }
+
+        await renderRegistrationList(tournamentId);
+        await renderTournamentView(tournamentId);
+    } catch (error) {
+        console.error('Start round robin error:', error);
+        alert('Unable to start round robin.');
+    }
+}
+
+async function resetRoundRobin(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/round-robin/reset/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Unable to reset tournament.');
+            return;
+        }
+
+        await renderRegistrationList(tournamentId);
+    } catch (error) {
+        console.error('Reset round robin error:', error);
+        alert('Unable to reset tournament.');
+    }
+}
+
+async function fetchRoundRobin(tournamentId) {
+    const response = await fetch(`/api/tournaments/round-robin/${tournamentId}`);
+    if (!response.ok) {
+        throw new Error('Failed to load tournament');
+    }
+    return await response.json();
+}
+
+async function renderTournamentView(tournamentId) {
+    const view = document.getElementById(`${tournamentId}-tournament-view`);
+    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    if (!view || !roundsContainer) return;
+
+    try {
+        const data = await fetchRoundRobin(tournamentId);
+        if (data.status !== 'tournament') {
+            view.classList.add('hidden');
+            return;
+        }
+
+        view.classList.remove('hidden');
+        const teams = await fetchRegistrations(tournamentId);
+        const teamPlayers = new Map();
+        teams.forEach(team => {
+            teamPlayers.set(team.id, (team.players || []).map(player => player.id));
+        });
+        const currentUser = window.authUtils && window.authUtils.getCurrentUser
+            ? window.authUtils.getCurrentUser()
+            : null;
+        const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
+        const isAdmin = window.authProfile && window.authProfile.isAdmin;
+
+        const matchesByRound = {};
+        (data.matches || []).forEach(match => {
+            const round = match.round_number;
+            if (!matchesByRound[round]) {
+                matchesByRound[round] = [];
+            }
+            matchesByRound[round].push(match);
+        });
+
+        const settings = await fetchTournamentSettings(tournamentId);
+        const totalRounds = settings.rounds;
+        const teamIds = (data.teams || []).map(team => team.team_id);
+
+        const ids = [...teamIds];
+        if (ids.length % 2 === 1) {
+            ids.push(null);
+        }
+        const n = ids.length;
+        const fixed = ids[0];
+        let rotating = ids.slice(1);
+        const byeMap = new Map();
+        for (let round = 1; round <= Math.min(totalRounds, n - 1); round++) {
+            const left = [fixed, ...rotating.slice(0, (n / 2) - 1)];
+            const right = rotating.slice((n / 2) - 1).reverse();
+            for (let i = 0; i < left.length; i++) {
+                const team1 = left[i];
+                const team2 = right[i];
+                if (!team1 || !team2) {
+                    const byeTeam = team1 || team2;
+                    if (byeTeam) {
+                        byeMap.set(round, byeTeam);
+                    }
+                }
+            }
+            rotating = [rotating[rotating.length - 1], ...rotating.slice(0, rotating.length - 1)];
+        }
+
+        const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
+        roundsContainer.innerHTML = rounds.map(round => {
+            const roundMatches = matchesByRound[round] || [];
+            const cards = roundMatches.map(match => {
+                const team1Players = teamPlayers.get(match.team1_id) || [];
+                const team2Players = teamPlayers.get(match.team2_id) || [];
+                const canEdit = isAdmin || (currentUserId && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+                return `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                            ${formatTeamNameLines(match.team1_name || 'Team 1')}
+                            ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit)}
+                        </div>
+                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                            ${formatTeamNameLines(match.team2_name || 'Team 2')}
+                            ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const byeTeamId = byeMap.get(Number(round));
+            const byeTeam = (data.teams || []).find(team => team.team_id === byeTeamId);
+            const byeCard = byeTeam ? `
+                <div class="bg-gray-100 border border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
+                    ${formatTeamNameLines(byeTeam.team_name || 'Team')}
+                    <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
+                </div>
+            ` : '';
+
+            return `
+                <div class="min-w-[290px] snap-center border rounded-xl p-4" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                    <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
+                    <div class="space-y-4">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-gray-500">No matches scheduled.</div>' : '')}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Render tournament error:', error);
+        view.classList.add('hidden');
+    }
+}
+
+const tournamentPollers = new Map();
+
+function startTournamentPolling(tournamentId) {
+    if (tournamentPollers.has(tournamentId)) return;
+    const interval = setInterval(() => {
+        renderTournamentView(tournamentId);
+    }, 5000);
+    tournamentPollers.set(tournamentId, interval);
+}
+
+function stopTournamentPolling(tournamentId) {
+    const interval = tournamentPollers.get(tournamentId);
+    if (interval) {
+        clearInterval(interval);
+        tournamentPollers.delete(tournamentId);
+    }
+}
+
+function scoreInputHtml(tournamentId, matchId, slot, value, canEdit) {
+    const val = Number.isInteger(value) ? value : '';
+    const disabled = canEdit ? '' : 'disabled';
+    const disabledClass = '';
+    return `<input
+        type="number"
+        inputmode="numeric"
+        class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center ${disabledClass}"
+        value="${val}"
+        id="${tournamentId}-${matchId}-score${slot}"
+        ${disabled}
+        oninput="updateScore('${tournamentId}', '${matchId}')"
+    >`;
+}
+
+let scoreSaveTimeout;
+function updateScore(tournamentId, matchId) {
+    clearTimeout(scoreSaveTimeout);
+    scoreSaveTimeout = setTimeout(() => {
+        submitScore(tournamentId, matchId);
+    }, 300);
+}
+
+async function submitScore(tournamentId, matchId) {
+    const input1 = document.getElementById(`${tournamentId}-${matchId}-score1`);
+    const input2 = document.getElementById(`${tournamentId}-${matchId}-score2`);
+    if (!input1 || !input2) return;
+    const raw1 = input1.value.trim();
+    const raw2 = input2.value.trim();
+    if (raw1 === '' && raw2 === '') return;
+    const score1 = raw1 === '' ? null : Number(raw1);
+    const score2 = raw2 === '' ? null : Number(raw2);
+    if (score1 !== null && !Number.isInteger(score1)) return;
+    if (score2 !== null && !Number.isInteger(score2)) return;
+
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/round-robin/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ matchId, score1, score2 })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Score update error:', error);
+        }
+    } catch (error) {
+        console.error('Score update error:', error);
+    }
 }
 
 async function renderRegistrationList(tournamentId) {
@@ -322,8 +847,17 @@ async function renderRegistrationList(tournamentId) {
     const tournament = TOURNAMENTS.upcoming.find(t => t.id === tournamentId);
     const doubles = tournament ? isDoublesTournament(tournament) : false;
     let teams = [];
+    let maxTeams = 12;
+    let status = 'registration';
     try {
         teams = await fetchRegistrations(tournamentId);
+        const settings = await fetchTournamentSettings(tournamentId);
+        if (settings && Number.isInteger(settings.maxTeams)) {
+            maxTeams = settings.maxTeams;
+        }
+        if (settings && settings.status) {
+            status = settings.status;
+        }
     } catch (error) {
         list.innerHTML = '<p class="text-sm text-red-500">Unable to load registrations.</p>';
         count.textContent = '0 teams';
@@ -355,9 +889,9 @@ async function renderRegistrationList(tournamentId) {
             }).join('');
 
             const needsPartner = doubles && players.length === 1;
-            const joinButton = needsPartner
-                ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal">Join</button>`
-                : '';
+        const joinButton = needsPartner
+            ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal">Join</button>`
+            : '';
 
             return `
                 <div class="flex items-start justify-between py-3 border-t border-gray-300 first:border-t-0">
@@ -375,13 +909,142 @@ async function renderRegistrationList(tournamentId) {
     }
 
     const actionButton = document.getElementById(`${tournamentId}-registration-action`);
+    const actionButtonText = document.getElementById(`${tournamentId}-registration-button-text`);
+    const capacityNote = document.getElementById(`${tournamentId}-capacity-note`);
+    const registrationActions = document.getElementById(`${tournamentId}-registration-actions`);
+    const isFull = teams.length >= maxTeams;
+    const tournamentView = document.getElementById(`${tournamentId}-tournament-view`);
+    if (status === 'tournament') {
+        if (actionButton) {
+            actionButton.setAttribute('onclick', `toggleTournamentView('${tournamentId}')`);
+            actionButton.disabled = false;
+        }
+        if (actionButtonText) {
+            actionButtonText.textContent = 'View Tournament';
+        }
+        if (registrationActions) {
+            registrationActions.classList.add('hidden');
+        }
+        const registrationHeader = document.getElementById(`${tournamentId}-registration-header`);
+        if (registrationHeader) {
+            registrationHeader.classList.add('hidden');
+        }
+        list.classList.add('hidden');
+        if (tournamentView) {
+            tournamentView.classList.remove('hidden');
+            renderTournamentView(tournamentId);
+            startTournamentPolling(tournamentId);
+        }
+        const adminSettings = document.getElementById(`${tournamentId}-admin-settings`);
+        if (adminSettings) {
+            adminSettings.remove();
+        }
+        const tournamentActions = document.getElementById(`${tournamentId}-tournament-actions`);
+        if (tournamentActions) {
+            tournamentActions.innerHTML = '';
+            if (window.authProfile && window.authProfile.isAdmin) {
+                const resetButton = document.createElement('button');
+                resetButton.className = 'text-xs font-semibold text-white bg-ocean-blue px-3 py-1 rounded-full hover:bg-ocean-teal transition';
+                resetButton.textContent = 'Return to Registration';
+                resetButton.onclick = () => resetRoundRobin(tournamentId);
+                tournamentActions.appendChild(resetButton);
+            }
+        }
+        return;
+    } else {
+        list.classList.remove('hidden');
+        if (tournamentView) {
+            tournamentView.classList.add('hidden');
+        }
+        if (registrationActions) {
+            registrationActions.classList.remove('hidden');
+        }
+        const registrationHeader = document.getElementById(`${tournamentId}-registration-header`);
+        if (registrationHeader) {
+            registrationHeader.classList.remove('hidden');
+        }
+        ensureAdminSettings(tournamentId);
+    }
+
     if (actionButton) {
         if (isRegistered) {
             actionButton.textContent = 'Leave Team';
             actionButton.setAttribute('onclick', `leaveTeam('${tournamentId}')`);
+            actionButton.disabled = false;
         } else {
-            actionButton.textContent = 'Register Team';
-            actionButton.setAttribute('onclick', `registerTeam('${tournamentId}')`);
+            if (isFull && !isAdmin) {
+                actionButton.textContent = 'Registration Full';
+                actionButton.removeAttribute('onclick');
+                actionButton.disabled = true;
+            } else {
+                actionButton.textContent = 'Register Team';
+                actionButton.setAttribute('onclick', `registerTeam('${tournamentId}')`);
+                actionButton.disabled = false;
+            }
+        }
+    }
+
+    if (capacityNote) {
+        capacityNote.textContent = maxTeams === 6
+            ? '6 team maximum'
+            : `${maxTeams} team maximum`;
+    }
+
+    const adminSettings = document.getElementById(`${tournamentId}-admin-settings`);
+    if (adminSettings && window.authProfile && window.authProfile.isAdmin) {
+        loadAdminSettings(tournamentId);
+        const hasMinTeams = teams.length >= 4;
+        const allFull = teams.every(team => (team.players || []).length >= 2);
+        const existingButton = document.getElementById(`${tournamentId}-start-round-robin`);
+        if (!existingButton) {
+            const button = document.createElement('button');
+            button.id = `${tournamentId}-start-round-robin`;
+            button.className = 'mt-4 w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold';
+            button.textContent = 'Start Round Robin';
+            button.onclick = () => startRoundRobin(tournamentId);
+            adminSettings.appendChild(button);
+        }
+        const startButton = document.getElementById(`${tournamentId}-start-round-robin`);
+        if (startButton) {
+            startButton.disabled = !(hasMinTeams && allFull);
+            startButton.classList.toggle('opacity-50', startButton.disabled);
+            startButton.classList.toggle('cursor-not-allowed', startButton.disabled);
+        }
+    }
+}
+
+function toggleTournamentView(tournamentId) {
+    const view = document.getElementById(`${tournamentId}-tournament-view`);
+    const list = document.getElementById(`${tournamentId}-registration-list`);
+    const buttonText = document.getElementById(`${tournamentId}-registration-button-text`);
+    if (!view || !list || !buttonText) return;
+    if (view.classList.contains('hidden')) {
+        view.classList.remove('hidden');
+        list.classList.add('hidden');
+        buttonText.textContent = 'Hide Tournament';
+        renderTournamentView(tournamentId);
+        startTournamentPolling(tournamentId);
+    } else {
+        view.classList.add('hidden');
+        list.classList.remove('hidden');
+        buttonText.textContent = 'View Tournament';
+        stopTournamentPolling(tournamentId);
+    }
+}
+
+async function refreshTournamentButtons() {
+    const tournaments = TOURNAMENTS.upcoming || [];
+    for (const tournament of tournaments) {
+        try {
+            const settings = await fetchTournamentSettings(tournament.id);
+            if (settings.status === 'tournament') {
+                const buttonText = document.getElementById(`${tournament.id}-registration-button-text`);
+                if (buttonText) {
+                    buttonText.textContent = 'View Tournament';
+                }
+            }
+        } catch (error) {
+            // ignore
         }
     }
 }
@@ -762,18 +1425,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         clearOpenRegistration();
     }
-    if (window.authUtils && window.authUtils.loadAuthProfile) {
-        window.authUtils.loadAuthProfile().then(() => {
+    refreshTournamentButtons();
+    if (window.authUtils && window.authUtils.loadAuthProfile && window.authUtils.ready) {
+        window.authUtils.ready().then(() => {
+            return window.authUtils.loadAuthProfile();
+        }).then(() => {
             const openPanels = document.querySelectorAll('[id$="-registration"]:not(.hidden)');
             openPanels.forEach(panel => {
                 const tournamentId = panel.id.replace('-registration', '');
                 renderRegistrationList(tournamentId);
             });
-        });
+        }).catch(() => {});
     }
     
     // Check status every minute
     setInterval(checkTournamentStatus, 60000);
+});
+
+window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        flushSettingsSaves();
+    }
+});
+
+window.addEventListener('beforeunload', () => {
+    flushSettingsSaves();
 });
 
 window.addEventListener('auth:changed', () => {

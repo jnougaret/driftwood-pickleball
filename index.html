@@ -208,6 +208,35 @@
         #results-container {
             align-items: flex-start !important;
         }
+
+        .score-input {
+            width: 2rem;
+            align-self: center;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            font-weight: 700;
+            color: #111827;
+            background-color: #ffffff;
+        }
+
+        .score-input::-webkit-outer-spin-button,
+        .score-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .score-input[type=number] {
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+
+        .score-input:disabled {
+            cursor: default;
+            pointer-events: none;
+            background-color: #e5e7eb;
+            border-color: #9ca3af;
+            color: #111827;
+        }
     </style>
     <script src="tournaments-config.js"></script>
 </head>

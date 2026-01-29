@@ -79,6 +79,20 @@ async function listTeams(env, tournamentId) {
     return Array.from(teamMap.values());
 }
 
+async function getMaxTeams(env, tournamentId) {
+    const settings = await env.DB.prepare(
+        'SELECT max_teams FROM tournament_settings WHERE tournament_id = ?'
+    ).bind(tournamentId).first();
+    return settings?.max_teams ?? 12;
+}
+
+async function getTournamentStatus(env, tournamentId) {
+    const state = await env.DB.prepare(
+        'SELECT status FROM tournament_state WHERE tournament_id = ?'
+    ).bind(tournamentId).first();
+    return state?.status ?? 'registration';
+}
+
 async function getUserProfile(env, userId) {
     return await env.DB.prepare(
         'SELECT id, dupr_id FROM users WHERE id = ?'
@@ -156,6 +170,19 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     try {
+        const status = await getTournamentStatus(env, tournamentId);
+        if (status !== 'registration') {
+            return jsonResponse({ error: 'Tournament has started' }, 400);
+        }
+        const maxTeams = await getMaxTeams(env, tournamentId);
+        const teamCountResult = await env.DB.prepare(
+            'SELECT COUNT(*) AS count FROM teams WHERE tournament_id = ?'
+        ).bind(tournamentId).first();
+        const teamCount = teamCountResult?.count ?? 0;
+        if (teamCount >= maxTeams) {
+            return jsonResponse({ error: 'Registration is full' }, 400);
+        }
+
         if (action === 'create') {
             const teamId = crypto.randomUUID();
             await env.DB.batch([
