@@ -145,7 +145,7 @@ function createTournamentCard(tournament, type) {
                     </div>
                     <div id="${tournament.id}-tournament-view" class="hidden tournament-view-block">
                         <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-xl font-bold text-ocean-blue">Round Robin</h4>
+                            <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
                         </div>
                         <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"></div>
@@ -291,7 +291,9 @@ async function fetchTournamentSettings(tournamentId) {
         localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
             maxTeams: data.maxTeams,
             rounds: data.rounds,
-            status: data.status
+            status: data.status,
+            playoffTeams: data.playoffTeams,
+            playoffBestOfThree: data.playoffBestOfThree
         }));
     }
     return data;
@@ -471,6 +473,21 @@ function formatTeamNameLines(name) {
     `;
 }
 
+function formatTeamNameLinesLight(name) {
+    if (!name) {
+        return '<div class="text-sm text-white">Team</div>';
+    }
+    const parts = String(name).split(' / ').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) {
+        return '<div class="text-sm text-white">Team</div>';
+    }
+    return `
+        <div class="space-y-1 text-sm text-white">
+            ${parts.map(part => `<div>${part}</div>`).join('')}
+        </div>
+    `;
+}
+
 async function loadAdminSettings(tournamentId) {
     const settingsContainer = document.getElementById(`${tournamentId}-admin-settings`);
     if (!settingsContainer) return;
@@ -564,14 +581,46 @@ async function updateRounds(tournamentId, value) {
     await persistSettings(tournamentId);
 }
 
+async function updatePlayoffTeams(tournamentId, value) {
+    const playoffValue = document.getElementById(`${tournamentId}-playoff-teams-value`);
+    if (playoffValue) {
+        playoffValue.textContent = value;
+    }
+    await persistPlayoffSettings(tournamentId);
+}
+
+async function togglePlayoffBestOfThree(tournamentId) {
+    const button = document.getElementById(`${tournamentId}-playoff-best-of-three`);
+    if (!button) return;
+    const isOn = button.dataset.enabled === 'true';
+    const next = !isOn;
+    button.dataset.enabled = next ? 'true' : 'false';
+    button.textContent = `Final: Best of 3 Games (${next ? 'On' : 'Off'})`;
+    button.classList.toggle('bg-ocean-blue', next);
+    button.classList.toggle('text-white', next);
+    button.classList.toggle('bg-white', !next);
+    button.classList.toggle('text-ocean-blue', !next);
+    await persistPlayoffSettings(tournamentId);
+}
+
 let settingsSaveTimeout;
 const pendingSettings = new Set();
+let playoffSettingsSaveTimeout;
+const pendingPlayoffSettings = new Set();
 
 async function persistSettings(tournamentId) {
     pendingSettings.add(tournamentId);
     clearTimeout(settingsSaveTimeout);
     settingsSaveTimeout = setTimeout(() => {
         flushSettingsSaves();
+    }, 300);
+}
+
+async function persistPlayoffSettings(tournamentId) {
+    pendingPlayoffSettings.add(tournamentId);
+    clearTimeout(playoffSettingsSaveTimeout);
+    playoffSettingsSaveTimeout = setTimeout(() => {
+        flushPlayoffSettingsSaves();
     }, 300);
 }
 
@@ -593,6 +642,32 @@ async function flushSettingsSaves() {
             }));
         } catch (error) {
             console.error('Save settings error:', error);
+        }
+    }));
+}
+
+async function flushPlayoffSettingsSaves() {
+    const tournaments = Array.from(pendingPlayoffSettings);
+    pendingPlayoffSettings.clear();
+    await Promise.all(tournaments.map(async tournamentId => {
+        const playoffTeamsInput = document.getElementById(`${tournamentId}-playoff-teams`);
+        const bestOfThreeButton = document.getElementById(`${tournamentId}-playoff-best-of-three`);
+        if (!playoffTeamsInput || !bestOfThreeButton) return;
+        const bestOfThree = bestOfThreeButton.dataset.enabled === 'true';
+        try {
+            await saveTournamentSettings(tournamentId, {
+                playoffTeams: Number(playoffTeamsInput.value),
+                playoffBestOfThree: bestOfThree
+            });
+            const cached = localStorage.getItem(`tournament-settings-${tournamentId}`);
+            const cachedSettings = cached ? JSON.parse(cached) : {};
+            localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
+                ...cachedSettings,
+                playoffTeams: Number(playoffTeamsInput.value),
+                playoffBestOfThree: bestOfThree
+            }));
+        } catch (error) {
+            console.error('Save playoff settings error:', error);
         }
     }));
 }
@@ -622,6 +697,44 @@ async function startRoundRobin(tournamentId) {
     } catch (error) {
         console.error('Start round robin error:', error);
         alert('Unable to start round robin.');
+    }
+}
+
+async function startPlayoff(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const playoffTeamsInput = document.getElementById(`${tournamentId}-playoff-teams`);
+        const bestOfThreeButton = document.getElementById(`${tournamentId}-playoff-best-of-three`);
+        if (playoffTeamsInput && bestOfThreeButton) {
+            const bestOfThree = bestOfThreeButton.dataset.enabled === 'true';
+            await saveTournamentSettings(tournamentId, {
+                playoffTeams: Number(playoffTeamsInput.value),
+                playoffBestOfThree: bestOfThree
+            });
+        }
+
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/playoff/start/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Unable to start playoff.');
+            return;
+        }
+
+        await renderRegistrationList(tournamentId);
+        await renderTournamentView(tournamentId, { force: true });
+    } catch (error) {
+        console.error('Start playoff error:', error);
+        alert('Unable to start playoff.');
     }
 }
 
@@ -660,15 +773,25 @@ async function fetchRoundRobin(tournamentId) {
     return await response.json();
 }
 
-async function renderTournamentView(tournamentId) {
+async function fetchPlayoffState(tournamentId) {
+    const response = await fetch(`/api/tournaments/playoff/${tournamentId}`);
+    if (!response.ok) {
+        throw new Error('Failed to load playoff');
+    }
+    return await response.json();
+}
+
+async function renderTournamentView(tournamentId, options = {}) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!view || !roundsContainer) return;
-    const activeEl = document.activeElement;
-    if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
-        if (activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
-            return;
+    if (!options.force) {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
+            if (activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
+                return;
+            }
         }
     }
 
@@ -680,6 +803,12 @@ async function renderTournamentView(tournamentId) {
         }
 
         view.classList.remove('hidden');
+        let playoff = null;
+        try {
+            playoff = await fetchPlayoffState(tournamentId);
+        } catch (error) {
+            playoff = null;
+        }
         const teams = await fetchRegistrations(tournamentId);
         const teamPlayers = new Map();
         teams.forEach(team => {
@@ -690,6 +819,17 @@ async function renderTournamentView(tournamentId) {
             : null;
         const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
         const isAdmin = window.authProfile && window.authProfile.isAdmin;
+        const title = document.getElementById(`${tournamentId}-tournament-title`);
+        if (playoff && playoff.status === 'playoff') {
+            if (title) {
+                title.textContent = 'Playoffs';
+            }
+            renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin);
+            return;
+        }
+        if (title) {
+            title.textContent = 'Round Robin';
+        }
 
         const matchesByRound = {};
         (data.matches || []).forEach(match => {
@@ -729,7 +869,121 @@ async function renderTournamentView(tournamentId) {
         }
 
         const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
-        roundsContainer.innerHTML = rounds.map(round => {
+        const roundsWithResults = [...rounds, 'results'];
+        const stats = new Map();
+        (data.teams || []).forEach(team => {
+            stats.set(team.team_id, {
+                teamId: team.team_id,
+                name: team.team_name || 'Team',
+                wins: 0,
+                losses: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+                games: 0
+            });
+        });
+
+        (data.matches || []).forEach(match => {
+            if (!Number.isInteger(match.score1) || !Number.isInteger(match.score2)) return;
+            const team1 = stats.get(match.team1_id);
+            const team2 = stats.get(match.team2_id);
+            if (!team1 || !team2) return;
+            team1.pointsFor += match.score1;
+            team1.pointsAgainst += match.score2;
+            team2.pointsFor += match.score2;
+            team2.pointsAgainst += match.score1;
+            team1.games += 1;
+            team2.games += 1;
+            if (match.score1 > match.score2) {
+                team1.wins += 1;
+                team2.losses += 1;
+            } else if (match.score2 > match.score1) {
+                team2.wins += 1;
+                team1.losses += 1;
+            }
+        });
+
+        const standings = Array.from(stats.values()).map(team => {
+            const diffTotal = team.pointsFor - team.pointsAgainst;
+            const avgDiff = team.games > 0 ? diffTotal / team.games : 0;
+            return { ...team, avgDiff };
+        }).sort((a, b) => {
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            if (a.losses !== b.losses) return a.losses - b.losses;
+            if (b.avgDiff !== a.avgDiff) return b.avgDiff - a.avgDiff;
+            return a.name.localeCompare(b.name);
+        });
+
+        roundsContainer.innerHTML = roundsWithResults.map(round => {
+            if (round === 'results') {
+                const rows = standings.map(team => {
+                    const record = `(${team.wins}-${team.losses})`;
+                    const avgDiff = `${team.avgDiff >= 0 ? '+' : ''}${team.avgDiff.toFixed(1)}`;
+                    return `
+                        <div class="bg-white rounded-lg p-3 flex items-center justify-between gap-3">
+                            <div class="flex-1">
+                                ${formatTeamNameLines(team.name)}
+                            </div>
+                            <div class="text-right text-sm text-gray-700 flex flex-col items-end justify-center">
+                                <div class="font-semibold">${avgDiff}</div>
+                                <div class="text-xs text-gray-500">${record}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const totalTeams = standings.length;
+                const maxPlayoffTeams = Math.min(8, totalTeams);
+                const effectiveMaxPlayoffTeams = Math.max(2, maxPlayoffTeams);
+                const defaultPlayoffTeams = effectiveMaxPlayoffTeams;
+                const savedPlayoffTeams = Number.isInteger(settings.playoffTeams) ? settings.playoffTeams : null;
+                const playoffTeamsValue = savedPlayoffTeams && savedPlayoffTeams <= effectiveMaxPlayoffTeams
+                    ? savedPlayoffTeams
+                    : defaultPlayoffTeams;
+                const bestOfThree = settings.playoffBestOfThree === true;
+                const playoffControls = isAdmin ? `
+                    <div class="bg-white rounded-lg p-3 space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700"># of playoff teams</span>
+                                <span class="text-sm text-gray-500" id="${tournamentId}-playoff-teams-value">${playoffTeamsValue}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="2"
+                                max="${effectiveMaxPlayoffTeams}"
+                                step="1"
+                                value="${playoffTeamsValue}"
+                                id="${tournamentId}-playoff-teams"
+                                class="w-full"
+                                oninput="updatePlayoffTeams('${tournamentId}', this.value)"
+                            >
+                        </div>
+                        <button
+                            id="${tournamentId}-playoff-best-of-three"
+                            class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThree ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
+                            onclick="togglePlayoffBestOfThree('${tournamentId}')"
+                            data-enabled="${bestOfThree ? 'true' : 'false'}"
+                        >
+                            Final: Best of 3 Games (${bestOfThree ? 'On' : 'Off'})
+                        </button>
+                        <button
+                            class="w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                            onclick="startPlayoff('${tournamentId}')"
+                        >
+                            Start Playoff
+                        </button>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                        <h5 class="text-lg font-semibold text-white mb-3">Results</h5>
+                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
+                        ${playoffControls}
+                    </div>
+                `;
+            }
             const roundMatches = matchesByRound[round] || [];
             const cards = roundMatches.map(match => {
                 const team1Players = teamPlayers.get(match.team1_id) || [];
@@ -741,6 +995,7 @@ async function renderTournamentView(tournamentId) {
                             ${formatTeamNameLines(match.team1_name || 'Team 1')}
                             ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit)}
                         </div>
+                        <div class="h-px bg-ocean-blue/50"></div>
                         <div class="flex items-start justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team2_name || 'Team 2')}
                             ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit)}
@@ -761,17 +1016,17 @@ async function renderTournamentView(tournamentId) {
             return `
                 <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                     <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
-                    <div class="space-y-4">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-gray-500">No matches scheduled.</div>' : '')}</div>
+                    <div class="space-y-4">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-white/70">No matches scheduled.</div>' : '')}</div>
                 </div>
             `;
         }).join('');
 
         if (indicators) {
-            indicators.innerHTML = rounds.map((round, index) => `
+            indicators.innerHTML = roundsWithResults.map((round, index) => `
                 <button
                     type="button"
                     class="round-indicator ${index === 0 ? 'is-active' : ''}"
-                    aria-label="Go to round ${round}"
+                    aria-label="${round === 'results' ? 'Go to results' : `Go to round ${round}`}"
                     onclick="scrollToRound('${tournamentId}', ${index})"
                 ></button>
             `).join('');
@@ -861,6 +1116,228 @@ function scoreInputHtml(tournamentId, matchId, slot, value, canEdit) {
     >`;
 }
 
+function playoffSeedOrderForSize(size) {
+    if (size === 2) return [1, 2];
+    if (size === 4) return [1, 4, 2, 3];
+    return [1, 8, 4, 5, 2, 7, 3, 6];
+}
+
+function buildPlayoffScoreMap(scores) {
+    const map = new Map();
+    (scores || []).forEach(score => {
+        const key = `${score.round_number}-${score.match_number}`;
+        map.set(key, score);
+    });
+    return map;
+}
+
+function playoffMatchWinner(match, score, isFinal, bestOfThree) {
+    if (!match.team1Id && !match.team2Id) return null;
+    if (match.team1Id && !match.team2Id) return match.team1Id;
+    if (!match.team1Id && match.team2Id) return match.team2Id;
+    if (!score) return null;
+    if (!isFinal || !bestOfThree) {
+        if (!Number.isInteger(score.game1_score1) || !Number.isInteger(score.game1_score2)) return null;
+        if (score.game1_score1 === score.game1_score2) return null;
+        return score.game1_score1 > score.game1_score2 ? match.team1Id : match.team2Id;
+    }
+    let wins1 = 0;
+    let wins2 = 0;
+    const games = [
+        [score.game1_score1, score.game1_score2],
+        [score.game2_score1, score.game2_score2],
+        [score.game3_score1, score.game3_score2]
+    ];
+    games.forEach(([s1, s2]) => {
+        if (!Number.isInteger(s1) || !Number.isInteger(s2) || s1 === s2) return;
+        if (s1 > s2) wins1 += 1;
+        if (s2 > s1) wins2 += 1;
+    });
+    if (wins1 >= 2) return match.team1Id;
+    if (wins2 >= 2) return match.team2Id;
+    return null;
+}
+
+function computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree) {
+    const slots = playoffSeedOrderForSize(bracketSize).map(seed => seedOrder[seed - 1] || null);
+    const scoreMap = buildPlayoffScoreMap(scores);
+    const rounds = [];
+    let current = [];
+
+    for (let i = 0; i < slots.length; i += 2) {
+        current.push({
+            team1Id: slots[i],
+            team2Id: slots[i + 1],
+            matchNumber: (i / 2) + 1
+        });
+    }
+
+    const totalRounds = Math.log2(bracketSize);
+    for (let round = 1; round <= totalRounds; round++) {
+        const isFinal = round === totalRounds;
+        const roundMatches = current.map(match => {
+            const score = scoreMap.get(`${round}-${match.matchNumber}`) || null;
+            return {
+                roundNumber: round,
+                matchNumber: match.matchNumber,
+                team1Id: match.team1Id,
+                team2Id: match.team2Id,
+                score
+            };
+        });
+        rounds.push(roundMatches);
+
+        const winners = roundMatches.map(match => playoffMatchWinner(match, match.score, isFinal, bestOfThree));
+        if (round < totalRounds) {
+            const next = [];
+            for (let i = 0; i < winners.length; i += 2) {
+                next.push({
+                    team1Id: winners[i] || null,
+                    team2Id: winners[i + 1] || null,
+                    matchNumber: (i / 2) + 1
+                });
+            }
+            current = next;
+        }
+    }
+
+    return rounds;
+}
+
+function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot, gameIndex, value, canEdit) {
+    const val = Number.isInteger(value) ? value : '';
+    const disabled = canEdit ? '' : 'disabled';
+    return `<input
+        type="number"
+        inputmode="numeric"
+        class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center"
+        value="${val}"
+        id="${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}"
+        ${disabled}
+        oninput="updatePlayoffScore('${tournamentId}', ${roundNumber}, ${matchNumber})"
+    >`;
+}
+
+function playoffRoundLabel(bracketSize, roundNumber) {
+    if (bracketSize === 2) return 'Finals';
+    if (bracketSize === 4) return roundNumber === 1 ? 'Semi-finals' : 'Finals';
+    if (bracketSize === 8) return roundNumber === 1 ? 'Quarter-finals' : (roundNumber === 2 ? 'Semi-finals' : 'Finals');
+    return `Round ${roundNumber}`;
+}
+
+async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin) {
+    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
+    if (!roundsContainer) return;
+
+    const seedOrder = playoff.seedOrder || [];
+    const scores = playoff.scores || [];
+    const bracketSize = playoff.bracketSize || 2;
+    const bestOfThree = playoff.bestOfThree === true;
+    const teamsMap = new Map((playoff.teams || []).map(team => [team.team_id, team.team_name || 'Team']));
+    const rounds = computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree);
+    const totalRounds = Math.log2(bracketSize);
+
+    roundsContainer.innerHTML = rounds.map((roundMatches, roundIndex) => {
+        const roundNumber = roundIndex + 1;
+        const isFinal = roundNumber === totalRounds;
+        const matchesHtml = roundMatches.map(match => {
+            const team1Name = teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD');
+            const team2Name = teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD');
+            const team1Players = teamPlayers.get(match.team1Id) || [];
+            const team2Players = teamPlayers.get(match.team2Id) || [];
+            const canEdit = isAdmin || (currentUserId && match.team1Id && match.team2Id && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+            const score = match.score || {};
+            const team1Score1 = score.game1_score1;
+            const team2Score1 = score.game1_score2;
+            const team1Score2 = score.game2_score1;
+            const team2Score2 = score.game2_score2;
+            const team1Score3 = score.game3_score1;
+            const team2Score3 = score.game3_score2;
+
+            const renderInputs = (teamSlot, values) => {
+                return `
+                    <div class="flex items-center gap-2">
+                        ${scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 1, values[0], canEdit)}
+                        ${isFinal && bestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 2, values[1], canEdit) : ''}
+                        ${isFinal && bestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 3, values[2], canEdit) : ''}
+                    </div>
+                `;
+            };
+
+            if (match.team1Id && !match.team2Id) {
+                return `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
+                        ${formatTeamNameLines(team1Name)}
+                        <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
+                    </div>
+                `;
+            }
+            if (!match.team1Id && match.team2Id) {
+                return `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
+                        ${formatTeamNameLines(team2Name)}
+                        <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
+                    </div>
+                `;
+            }
+            if (!match.team1Id && !match.team2Id) {
+                return `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-500">
+                        <span>TBD</span>
+                    </div>
+                `;
+            }
+            return `
+                <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div class="flex items-start justify-between gap-3 text-gray-600">
+                        ${formatTeamNameLines(team1Name)}
+                        ${renderInputs(1, [team1Score1, team1Score2, team1Score3])}
+                    </div>
+                    <div class="h-px bg-ocean-blue/50"></div>
+                    <div class="flex items-start justify-between gap-3 text-gray-600">
+                        ${formatTeamNameLines(team2Name)}
+                        ${renderInputs(2, [team2Score1, team2Score2, team2Score3])}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                <h5 class="text-lg font-semibold text-white mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
+                <div class="space-y-4">${matchesHtml || '<div class="text-sm text-white/70">No matches scheduled.</div>'}</div>
+            </div>
+        `;
+    }).join('');
+
+    if (indicators) {
+        indicators.innerHTML = rounds.map((_, index) => `
+            <button
+                type="button"
+                class="round-indicator ${index === 0 ? 'is-active' : ''}"
+                aria-label="Go to ${playoffRoundLabel(bracketSize, index + 1)}"
+                onclick="scrollToRound('${tournamentId}', ${index})"
+            ></button>
+        `).join('');
+    }
+
+    if (!roundsContainer.dataset.scrollListener) {
+        roundsContainer.dataset.scrollListener = 'true';
+        let ticking = false;
+        roundsContainer.addEventListener('scroll', () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                updateRoundIndicator(tournamentId);
+                ticking = false;
+            });
+        });
+    }
+
+    updateRoundIndicator(tournamentId);
+}
+
 let scoreSaveTimeout;
 function updateScore(tournamentId, matchId) {
     clearTimeout(scoreSaveTimeout);
@@ -869,13 +1346,71 @@ function updateScore(tournamentId, matchId) {
     }, 300);
 }
 
+let playoffScoreSaveTimeout;
+function updatePlayoffScore(tournamentId, roundNumber, matchNumber) {
+    clearTimeout(playoffScoreSaveTimeout);
+    playoffScoreSaveTimeout = setTimeout(() => {
+        submitPlayoffScore(tournamentId, roundNumber, matchNumber);
+    }, 300);
+}
+
+async function submitPlayoffScore(tournamentId, roundNumber, matchNumber) {
+    const getValue = (teamSlot, gameIndex) => {
+        const input = document.getElementById(`${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}`);
+        if (!input) return null;
+        const raw = input.value.trim();
+        if (raw === '') return null;
+        const num = Number(raw);
+        return Number.isInteger(num) ? num : null;
+    };
+
+    const games = {
+        game1: { score1: getValue(1, 1), score2: getValue(2, 1) },
+        game2: { score1: getValue(1, 2), score2: getValue(2, 2) },
+        game3: { score1: getValue(1, 3), score2: getValue(2, 3) }
+    };
+
+    const hasAnyScore = Object.values(games).some(game => Number.isInteger(game.score1) || Number.isInteger(game.score2));
+    if (!hasAnyScore) {
+        games.game1.score1 = null;
+        games.game1.score2 = null;
+        games.game2.score1 = null;
+        games.game2.score2 = null;
+        games.game3.score1 = null;
+        games.game3.score2 = null;
+    }
+
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/playoff/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ roundNumber, matchNumber, games })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Playoff score update error:', error);
+        } else {
+            renderTournamentView(tournamentId, { force: true });
+        }
+    } catch (error) {
+        console.error('Playoff score update error:', error);
+    }
+}
+
 async function submitScore(tournamentId, matchId) {
     const input1 = document.getElementById(`${tournamentId}-${matchId}-score1`);
     const input2 = document.getElementById(`${tournamentId}-${matchId}-score2`);
     if (!input1 || !input2) return;
     const raw1 = input1.value.trim();
     const raw2 = input2.value.trim();
-    if (raw1 === '' && raw2 === '') return;
     const score1 = raw1 === '' ? null : Number(raw1);
     const score2 = raw2 === '' ? null : Number(raw2);
     if (score1 !== null && !Number.isInteger(score1)) return;
@@ -898,6 +1433,8 @@ async function submitScore(tournamentId, matchId) {
         if (!response.ok) {
             const error = await response.json();
             console.error('Score update error:', error);
+        } else {
+            renderTournamentView(tournamentId, { force: true });
         }
     } catch (error) {
         console.error('Score update error:', error);
@@ -980,12 +1517,18 @@ async function renderRegistrationList(tournamentId) {
     const isFull = teams.length >= maxTeams;
     const tournamentView = document.getElementById(`${tournamentId}-tournament-view`);
     if (status === 'tournament') {
+        let playoff = null;
+        try {
+            playoff = await fetchPlayoffState(tournamentId);
+        } catch (error) {
+            playoff = null;
+        }
         if (actionButton) {
             actionButton.setAttribute('onclick', `toggleTournamentView('${tournamentId}')`);
             actionButton.disabled = false;
         }
         if (actionButtonText) {
-            actionButtonText.textContent = 'View Tournament';
+            actionButtonText.textContent = playoff && playoff.status === 'playoff' ? 'View Playoff' : 'View Tournament';
         }
         if (registrationActions) {
             registrationActions.classList.add('hidden');
@@ -1082,17 +1625,19 @@ function toggleTournamentView(tournamentId) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const list = document.getElementById(`${tournamentId}-registration-list`);
     const buttonText = document.getElementById(`${tournamentId}-registration-button-text`);
+    const title = document.getElementById(`${tournamentId}-tournament-title`);
+    const modeLabel = title && title.textContent === 'Playoffs' ? 'Playoff' : 'Tournament';
     if (!view || !list || !buttonText) return;
     if (view.classList.contains('hidden')) {
         view.classList.remove('hidden');
         list.classList.add('hidden');
-        buttonText.textContent = 'Hide Tournament';
+        buttonText.textContent = `Hide ${modeLabel}`;
         renderTournamentView(tournamentId);
         startTournamentPolling(tournamentId);
     } else {
         view.classList.add('hidden');
         list.classList.remove('hidden');
-        buttonText.textContent = 'View Tournament';
+        buttonText.textContent = `View ${modeLabel}`;
         stopTournamentPolling(tournamentId);
     }
 }
@@ -1105,7 +1650,12 @@ async function refreshTournamentButtons() {
             if (settings.status === 'tournament') {
                 const buttonText = document.getElementById(`${tournament.id}-registration-button-text`);
                 if (buttonText) {
-                    buttonText.textContent = 'View Tournament';
+                    try {
+                        const playoff = await fetchPlayoffState(tournament.id);
+                        buttonText.textContent = playoff && playoff.status === 'playoff' ? 'View Playoff' : 'View Tournament';
+                    } catch (error) {
+                        buttonText.textContent = 'View Tournament';
+                    }
                 }
             }
         } catch (error) {
@@ -1510,11 +2060,13 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         flushSettingsSaves();
+        flushPlayoffSettingsSaves();
     }
 });
 
 window.addEventListener('beforeunload', () => {
     flushSettingsSaves();
+    flushPlayoffSettingsSaves();
 });
 
 window.addEventListener('auth:changed', () => {

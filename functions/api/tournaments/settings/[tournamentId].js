@@ -15,7 +15,7 @@ async function getUserById(env, userId) {
 
 async function getSettings(env, tournamentId) {
     return await env.DB.prepare(
-        'SELECT max_teams, rounds FROM tournament_settings WHERE tournament_id = ?'
+        'SELECT max_teams, rounds, playoff_teams, playoff_best_of_three FROM tournament_settings WHERE tournament_id = ?'
     ).bind(tournamentId).first();
 }
 
@@ -32,15 +32,17 @@ async function ensureTournamentRow(env, tournamentId) {
     ).bind(tournamentId, tournamentId).run();
 }
 
-async function upsertSettings(env, tournamentId, maxTeams, rounds) {
+async function upsertSettings(env, tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree) {
     await env.DB.prepare(
-        `INSERT INTO tournament_settings (tournament_id, max_teams, rounds)
-         VALUES (?, ?, ?)
+        `INSERT INTO tournament_settings (tournament_id, max_teams, rounds, playoff_teams, playoff_best_of_three)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(tournament_id) DO UPDATE SET
             max_teams = excluded.max_teams,
             rounds = excluded.rounds,
+            playoff_teams = excluded.playoff_teams,
+            playoff_best_of_three = excluded.playoff_best_of_three,
             updated_at = CURRENT_TIMESTAMP`
-    ).bind(tournamentId, maxTeams, rounds).run();
+    ).bind(tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree).run();
 }
 
 export async function onRequestGet({ env, params }) {
@@ -55,6 +57,8 @@ export async function onRequestGet({ env, params }) {
         return jsonResponse({
             maxTeams: settings?.max_teams ?? 12,
             rounds: settings?.rounds ?? 6,
+            playoffTeams: settings?.playoff_teams ?? null,
+            playoffBestOfThree: settings?.playoff_best_of_three === 1,
             status: state?.status ?? 'registration'
         });
     } catch (error) {
@@ -86,18 +90,44 @@ export async function onRequestPost({ request, env, params }) {
         return jsonResponse({ error: 'Invalid JSON body' }, 400);
     }
 
-    const { maxTeams, rounds } = body;
-    if (!Number.isInteger(maxTeams) || !Number.isInteger(rounds)) {
-        return jsonResponse({ error: 'maxTeams and rounds must be integers' }, 400);
+    const { maxTeams, rounds, playoffTeams, playoffBestOfThree } = body;
+    const updates = [maxTeams, rounds, playoffTeams, playoffBestOfThree].some(value => value !== undefined);
+    if (!updates) {
+        return jsonResponse({ error: 'No settings provided' }, 400);
+    }
+    if (maxTeams !== undefined && !Number.isInteger(maxTeams)) {
+        return jsonResponse({ error: 'maxTeams must be an integer' }, 400);
+    }
+    if (rounds !== undefined && !Number.isInteger(rounds)) {
+        return jsonResponse({ error: 'rounds must be an integer' }, 400);
+    }
+    if (playoffTeams !== undefined && !Number.isInteger(playoffTeams)) {
+        return jsonResponse({ error: 'playoffTeams must be an integer' }, 400);
+    }
+    if (playoffBestOfThree !== undefined && typeof playoffBestOfThree !== 'boolean') {
+        return jsonResponse({ error: 'playoffBestOfThree must be a boolean' }, 400);
     }
 
     await ensureTournamentRow(env, tournamentId);
 
     const state = await getTournamentState(env, tournamentId);
-    if (state?.status === 'tournament') {
+    if (state?.status === 'tournament' && (maxTeams !== undefined || rounds !== undefined)) {
         return jsonResponse({ error: 'Tournament already started' }, 400);
     }
 
-    await upsertSettings(env, tournamentId, maxTeams, rounds);
+    const existing = await getSettings(env, tournamentId);
+    const nextMaxTeams = maxTeams ?? existing?.max_teams ?? 12;
+    const nextRounds = rounds ?? existing?.rounds ?? 6;
+    const nextPlayoffTeams = playoffTeams ?? existing?.playoff_teams ?? null;
+    const nextPlayoffBestOfThree = playoffBestOfThree ?? (existing?.playoff_best_of_three === 1);
+
+    await upsertSettings(
+        env,
+        tournamentId,
+        nextMaxTeams,
+        nextRounds,
+        nextPlayoffTeams,
+        nextPlayoffBestOfThree ? 1 : 0
+    );
     return jsonResponse({ success: true });
 }

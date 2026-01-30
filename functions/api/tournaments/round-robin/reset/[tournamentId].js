@@ -39,6 +39,12 @@ export async function onRequestPost({ request, env, params }) {
     await env.DB.prepare(
         'DELETE FROM tournament_state WHERE tournament_id = ?'
     ).bind(tournamentId).run();
+    await env.DB.prepare(
+        'DELETE FROM playoff_scores WHERE tournament_id = ?'
+    ).bind(tournamentId).run();
+    await env.DB.prepare(
+        'DELETE FROM playoff_state WHERE tournament_id = ?'
+    ).bind(tournamentId).run();
 
     return jsonResponse({ success: true });
 }

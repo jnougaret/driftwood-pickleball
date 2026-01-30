@@ -119,7 +119,7 @@ export async function onRequestPost({ request, env, params }) {
     const { matchId, score1, score2 } = body;
     const score1Valid = score1 === null || Number.isInteger(score1);
     const score2Valid = score2 === null || Number.isInteger(score2);
-    if (!matchId || !score1Valid || !score2Valid || (score1 === null && score2 === null)) {
+    if (!matchId || !score1Valid || !score2Valid) {
         return jsonResponse({ error: 'matchId with score1/score2 required' }, 400);
     }
 
@@ -136,6 +136,13 @@ export async function onRequestPost({ request, env, params }) {
         if (!teams.has(match.team1_id) && !teams.has(match.team2_id)) {
             return jsonResponse({ error: 'Forbidden' }, 403);
         }
+    }
+
+    if (score1 === null && score2 === null) {
+        await env.DB.prepare(
+            'DELETE FROM round_robin_scores WHERE match_id = ?'
+        ).bind(matchId).run();
+        return jsonResponse({ success: true });
     }
 
     await env.DB.prepare(
