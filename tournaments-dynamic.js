@@ -500,6 +500,17 @@ function formatTeamNameLinesShort(name, maxLength) {
     `;
 }
 
+function formatTbdLine() {
+    return '<div class="text-sm text-gray-500">TBD</div>';
+}
+
+function renderTeamName(name, formatter) {
+    if (name === 'TBD') {
+        return formatTbdLine();
+    }
+    return formatter(name);
+}
+
 function formatTeamNameLinesLight(name) {
     if (!name) {
         return '<div class="text-sm text-white">Team</div>';
@@ -1076,12 +1087,12 @@ async function renderTournamentView(tournamentId, options = {}) {
                 const canEdit = isAdmin || (currentUserId && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team1_name || 'Team 1')}
                             ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit)}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
-                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team2_name || 'Team 2')}
                             ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit)}
                         </div>
@@ -1391,13 +1402,13 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 if (roundNumber > 1) {
                     return `
                         <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                            <div class="flex items-start justify-between gap-3 text-gray-600">
-                                ${nameFormatter(team1Name)}
+                            <div class="flex items-center justify-between gap-3 text-gray-600">
+                                ${renderTeamName(team1Name, nameFormatter)}
                                 ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
-                            <div class="flex items-start justify-between gap-3 text-gray-500">
-                                <span class="text-sm">TBD</span>
+                            <div class="flex items-center justify-between gap-3 text-gray-500">
+                                ${formatTbdLine()}
                                 ${renderInputs(2, [null, null, null], isFinal && bestOfThree)}
                             </div>
                         </div>
@@ -1405,7 +1416,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 }
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
-                        ${nameFormatter(team1Name)}
+                        ${renderTeamName(team1Name, nameFormatter)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
                 `;
@@ -1414,13 +1425,13 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 if (roundNumber > 1) {
                     return `
                         <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                            <div class="flex items-start justify-between gap-3 text-gray-500">
-                                <span class="text-sm">TBD</span>
+                            <div class="flex items-center justify-between gap-3 text-gray-500">
+                                ${formatTbdLine()}
                                 ${renderInputs(1, [null, null, null], isFinal && bestOfThree)}
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
-                            <div class="flex items-start justify-between gap-3 text-gray-600">
-                                ${nameFormatter(team2Name)}
+                            <div class="flex items-center justify-between gap-3 text-gray-600">
+                                ${renderTeamName(team2Name, nameFormatter)}
                                 ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
                             </div>
                         </div>
@@ -1428,7 +1439,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 }
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
-                        ${nameFormatter(team2Name)}
+                        ${renderTeamName(team2Name, nameFormatter)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
                 `;
@@ -1436,25 +1447,25 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             if (!match.team1Id && !match.team2Id) {
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                        <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span class="text-sm">TBD</span>
+                        <div class="flex items-center justify-between gap-3 text-gray-500">
+                            ${formatTbdLine()}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
-                        <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span class="text-sm">TBD</span>
+                        <div class="flex items-center justify-between gap-3 text-gray-500">
+                            ${formatTbdLine()}
                         </div>
                     </div>
                 `;
             }
             return `
                 <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                    <div class="flex items-start justify-between gap-3 text-gray-600">
-                        ${nameFormatter(team1Name)}
+                    <div class="flex items-center justify-between gap-3 text-gray-600">
+                        ${renderTeamName(team1Name, nameFormatter)}
                         ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
                     </div>
                     <div class="h-px bg-ocean-blue/50"></div>
-                    <div class="flex items-start justify-between gap-3 text-gray-600">
-                        ${nameFormatter(team2Name)}
+                    <div class="flex items-center justify-between gap-3 text-gray-600">
+                        ${renderTeamName(team2Name, nameFormatter)}
                         ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
                     </div>
                 </div>
@@ -1489,8 +1500,8 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             if (bronzeTeam1 || bronzeTeam2) {
                 bronzeHtml = `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                        <div class="flex items-start justify-between gap-3 text-gray-600">
-                            ${bronzeNameFormatter(bronzeTeam1Name)}
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
+                            ${renderTeamName(bronzeTeam1Name, bronzeNameFormatter)}
                             ${bronzeInputs(1, [
                                 bronzeScore ? bronzeScore.game1_score1 : null,
                                 bronzeScore ? bronzeScore.game2_score1 : null,
@@ -1498,8 +1509,8 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                             ])}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
-                        <div class="flex items-start justify-between gap-3 text-gray-600">
-                            ${bronzeNameFormatter(bronzeTeam2Name)}
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
+                            ${renderTeamName(bronzeTeam2Name, bronzeNameFormatter)}
                             ${bronzeInputs(2, [
                                 bronzeScore ? bronzeScore.game1_score2 : null,
                                 bronzeScore ? bronzeScore.game2_score2 : null,
@@ -1511,12 +1522,12 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             } else {
                 bronzeHtml = `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                        <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span class="text-sm">TBD</span>
+                        <div class="flex items-center justify-between gap-3 text-gray-500">
+                            ${formatTbdLine()}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
-                        <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span class="text-sm">TBD</span>
+                        <div class="flex items-center justify-between gap-3 text-gray-500">
+                            ${formatTbdLine()}
                         </div>
                     </div>
                 `;
