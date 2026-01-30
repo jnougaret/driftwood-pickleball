@@ -78,10 +78,10 @@ function buildScoreMap(scores) {
     return map;
 }
 
-function matchWinner(match, score, isFinal, bestOfThree) {
+function matchWinner(match, score, isFinal, bestOfThree, roundNumber) {
     if (!match.team1Id && !match.team2Id) return null;
-    if (match.team1Id && !match.team2Id) return match.team1Id;
-    if (!match.team1Id && match.team2Id) return match.team2Id;
+    if (match.team1Id && !match.team2Id) return roundNumber === 1 ? match.team1Id : null;
+    if (!match.team1Id && match.team2Id) return roundNumber === 1 ? match.team2Id : null;
     if (!score) return null;
 
     if (!isFinal || !bestOfThree) {
@@ -138,7 +138,7 @@ function computeRounds(seedOrder, bracketSize, scores, bestOfThree) {
         });
         rounds.push(roundMatches);
 
-        const winners = roundMatches.map(match => matchWinner(match, match.score, isFinal, bestOfThree));
+        const winners = roundMatches.map(match => matchWinner(match, match.score, isFinal, bestOfThree, round));
         if (round < totalRounds) {
             const nextTeams = [];
             for (let i = 0; i < winners.length; i += 2) {
@@ -153,6 +153,20 @@ function computeRounds(seedOrder, bracketSize, scores, bestOfThree) {
     }
 
     return rounds;
+}
+
+function computeBronzeTeams(rounds, totalRounds, bestOfThree) {
+    if (totalRounds < 2) return { team1Id: null, team2Id: null };
+    const semiRound = rounds[totalRounds - 2] || [];
+    const losers = semiRound.map(match => matchWinner({
+        team1Id: match.team1Id,
+        team2Id: match.team2Id
+    }, match.score, false, bestOfThree ? false : false, totalRounds - 1)).map((winner, idx) => {
+        if (!winner) return null;
+        const match = semiRound[idx];
+        return winner === match.team1Id ? match.team2Id : match.team1Id;
+    });
+    return { team1Id: losers[0] || null, team2Id: losers[1] || null };
 }
 
 export async function onRequestGet({ env, params }) {
@@ -211,8 +225,14 @@ export async function onRequestPost({ request, env, params }) {
     const scores = await listScores(env, tournamentId);
     const bracketSize = playoffState.bracket_size || 2;
     const rounds = computeRounds(seedOrder, bracketSize, scores, playoffState.best_of_three === 1);
+    const totalRounds = Math.log2(bracketSize);
     const roundMatches = rounds[roundNumber - 1] || [];
-    const match = roundMatches.find(entry => entry.matchNumber === matchNumber);
+    let match = roundMatches.find(entry => entry.matchNumber === matchNumber);
+    const isFinalRound = roundNumber === totalRounds;
+    if (!match && isFinalRound && matchNumber === 2 && bracketSize >= 4) {
+        const bronzeTeams = computeBronzeTeams(rounds, totalRounds, playoffState.best_of_three === 1);
+        match = { team1Id: bronzeTeams.team1Id, team2Id: bronzeTeams.team2Id };
+    }
     if (!match) {
         return jsonResponse({ error: 'Match not found' }, 404);
     }
@@ -226,9 +246,9 @@ export async function onRequestPost({ request, env, params }) {
         }
     }
 
-    const totalRounds = Math.log2(bracketSize);
     const isFinal = roundNumber === totalRounds;
-    const bestOfThree = playoffState.best_of_three === 1 && isFinal;
+    const isGoldMatch = matchNumber === 1;
+    const bestOfThree = playoffState.best_of_three === 1 && isFinal && isGoldMatch;
 
     const normalizeScore = (value) => (Number.isInteger(value) ? value : null);
     const game1 = games.game1 || {};

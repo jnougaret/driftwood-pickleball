@@ -473,6 +473,32 @@ function formatTeamNameLines(name) {
     `;
 }
 
+function formatPlayerNameShort(fullName, maxLength) {
+    const trimmed = String(fullName || '').trim();
+    if (!trimmed) return '';
+    if (trimmed.length <= maxLength) return trimmed;
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return trimmed.slice(0, maxLength);
+    const first = parts[0];
+    const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+    return `${first} ${lastInitial}.`;
+}
+
+function formatTeamNameLinesShort(name, maxLength) {
+    if (!name) {
+        return '<div class="text-sm text-gray-700">Team</div>';
+    }
+    const parts = String(name).split(' / ').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) {
+        return '<div class="text-sm text-gray-700">Team</div>';
+    }
+    return `
+        <div class="space-y-1 text-sm text-gray-700">
+            ${parts.map(part => `<div>${formatPlayerNameShort(part, maxLength)}</div>`).join('')}
+        </div>
+    `;
+}
+
 function formatTeamNameLinesLight(name) {
     if (!name) {
         return '<div class="text-sm text-white">Team</div>';
@@ -731,7 +757,7 @@ async function startPlayoff(tournamentId) {
         }
 
         await renderRegistrationList(tournamentId);
-        await renderTournamentView(tournamentId, { force: true });
+        await renderTournamentView(tournamentId, { force: true, scrollToRound: 0 });
     } catch (error) {
         console.error('Start playoff error:', error);
         alert('Unable to start playoff.');
@@ -762,6 +788,34 @@ async function resetRoundRobin(tournamentId) {
     } catch (error) {
         console.error('Reset round robin error:', error);
         alert('Unable to reset tournament.');
+    }
+}
+
+async function resetPlayoff(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/playoff/reset/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Unable to reset playoff.');
+            return;
+        }
+
+        await renderRegistrationList(tournamentId);
+        await renderTournamentView(tournamentId, { force: true, scrollToResults: true });
+    } catch (error) {
+        console.error('Reset playoff error:', error);
+        alert('Unable to reset playoff.');
     }
 }
 
@@ -824,7 +878,10 @@ async function renderTournamentView(tournamentId, options = {}) {
             if (title) {
                 title.textContent = 'Playoffs';
             }
-            renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin);
+            const resetScroll = Number.isInteger(options.scrollToRound) && options.scrollToRound === 0;
+            const preserveScroll = options.preserveScroll === true && !resetScroll;
+            const currentScrollLeft = preserveScroll ? roundsContainer.scrollLeft : null;
+            renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll, currentScrollLeft);
             return;
         }
         if (title) {
@@ -870,6 +927,10 @@ async function renderTournamentView(tournamentId, options = {}) {
 
         const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
         const roundsWithResults = [...rounds, 'results'];
+        if (isAdmin) {
+            roundsWithResults.push('playoff-settings');
+        }
+        const resultsIndex = rounds.length;
         const stats = new Map();
         (data.teams || []).forEach(team => {
             stats.set(team.team_id, {
@@ -914,6 +975,7 @@ async function renderTournamentView(tournamentId, options = {}) {
             return a.name.localeCompare(b.name);
         });
 
+        roundsContainer.dataset.rendering = 'true';
         roundsContainer.innerHTML = roundsWithResults.map(round => {
             if (round === 'results') {
                 const rows = standings.map(team => {
@@ -932,6 +994,14 @@ async function renderTournamentView(tournamentId, options = {}) {
                     `;
                 }).join('');
 
+                return `
+                    <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                        <h5 class="text-lg font-semibold text-white mb-3">Results</h5>
+                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
+                    </div>
+                `;
+            }
+            if (round === 'playoff-settings') {
                 const totalTeams = standings.length;
                 const maxPlayoffTeams = Math.min(8, totalTeams);
                 const effectiveMaxPlayoffTeams = Math.max(2, maxPlayoffTeams);
@@ -941,46 +1011,41 @@ async function renderTournamentView(tournamentId, options = {}) {
                     ? savedPlayoffTeams
                     : defaultPlayoffTeams;
                 const bestOfThree = settings.playoffBestOfThree === true;
-                const playoffControls = isAdmin ? `
-                    <div class="bg-white rounded-lg p-3 space-y-3">
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm font-medium text-gray-700"># of playoff teams</span>
-                                <span class="text-sm text-gray-500" id="${tournamentId}-playoff-teams-value">${playoffTeamsValue}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="2"
-                                max="${effectiveMaxPlayoffTeams}"
-                                step="1"
-                                value="${playoffTeamsValue}"
-                                id="${tournamentId}-playoff-teams"
-                                class="w-full"
-                                oninput="updatePlayoffTeams('${tournamentId}', this.value)"
-                            >
-                        </div>
-                        <button
-                            id="${tournamentId}-playoff-best-of-three"
-                            class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThree ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
-                            onclick="togglePlayoffBestOfThree('${tournamentId}')"
-                            data-enabled="${bestOfThree ? 'true' : 'false'}"
-                        >
-                            Final: Best of 3 Games (${bestOfThree ? 'On' : 'Off'})
-                        </button>
-                        <button
-                            class="w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
-                            onclick="startPlayoff('${tournamentId}')"
-                        >
-                            Start Playoff
-                        </button>
-                    </div>
-                ` : '';
-
                 return `
                     <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
-                        <h5 class="text-lg font-semibold text-white mb-3">Results</h5>
-                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
-                        ${playoffControls}
+                        <h5 class="text-lg font-semibold text-white mb-3">Playoff Settings</h5>
+                        <div class="bg-white rounded-lg p-3 space-y-3">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-gray-700"># of playoff teams</span>
+                                    <span class="text-sm text-gray-500" id="${tournamentId}-playoff-teams-value">${playoffTeamsValue}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="2"
+                                    max="${effectiveMaxPlayoffTeams}"
+                                    step="1"
+                                    value="${playoffTeamsValue}"
+                                    id="${tournamentId}-playoff-teams"
+                                    class="w-full"
+                                    oninput="updatePlayoffTeams('${tournamentId}', this.value)"
+                                >
+                            </div>
+                            <button
+                                id="${tournamentId}-playoff-best-of-three"
+                                class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThree ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
+                                onclick="togglePlayoffBestOfThree('${tournamentId}')"
+                                data-enabled="${bestOfThree ? 'true' : 'false'}"
+                            >
+                                Final: Best of 3 Games (${bestOfThree ? 'On' : 'Off'})
+                            </button>
+                            <button
+                                class="w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                                onclick="startPlayoff('${tournamentId}')"
+                            >
+                                Start Playoff
+                            </button>
+                        </div>
                     </div>
                 `;
             }
@@ -1025,8 +1090,8 @@ async function renderTournamentView(tournamentId, options = {}) {
             indicators.innerHTML = roundsWithResults.map((round, index) => `
                 <button
                     type="button"
-                    class="round-indicator ${index === 0 ? 'is-active' : ''}"
-                    aria-label="${round === 'results' ? 'Go to results' : `Go to round ${round}`}"
+                    class="round-indicator"
+                    aria-label="${round === 'results' ? 'Go to results' : round === 'playoff-settings' ? 'Go to playoff settings' : `Go to round ${round}`}"
                     onclick="scrollToRound('${tournamentId}', ${index})"
                 ></button>
             `).join('');
@@ -1036,6 +1101,7 @@ async function renderTournamentView(tournamentId, options = {}) {
             roundsContainer.dataset.scrollListener = 'true';
             let ticking = false;
             roundsContainer.addEventListener('scroll', () => {
+                if (roundsContainer.dataset.rendering === 'true') return;
                 if (ticking) return;
                 ticking = true;
                 requestAnimationFrame(() => {
@@ -1045,7 +1111,21 @@ async function renderTournamentView(tournamentId, options = {}) {
             });
         }
 
-        updateRoundIndicator(tournamentId);
+        if (options.scrollToResults) {
+            requestAnimationFrame(() => {
+                scrollToRound(tournamentId, resultsIndex);
+                setTimeout(() => {
+                    scrollToRound(tournamentId, resultsIndex);
+                    updateRoundIndicator(tournamentId);
+                    roundsContainer.dataset.rendering = 'false';
+                }, 120);
+            });
+        } else {
+            requestAnimationFrame(() => {
+                updateRoundIndicator(tournamentId);
+                roundsContainer.dataset.rendering = 'false';
+            });
+        }
     } catch (error) {
         console.error('Render tournament error:', error);
         view.classList.add('hidden');
@@ -1064,6 +1144,10 @@ function updateRoundIndicator(tournamentId) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!roundsContainer || !indicators) return;
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
+        return;
+    }
     const cards = Array.from(roundsContainer.children);
     if (!cards.length) return;
 
@@ -1131,10 +1215,10 @@ function buildPlayoffScoreMap(scores) {
     return map;
 }
 
-function playoffMatchWinner(match, score, isFinal, bestOfThree) {
+function playoffMatchWinner(match, score, isFinal, bestOfThree, roundNumber) {
     if (!match.team1Id && !match.team2Id) return null;
-    if (match.team1Id && !match.team2Id) return match.team1Id;
-    if (!match.team1Id && match.team2Id) return match.team2Id;
+    if (match.team1Id && !match.team2Id) return roundNumber === 1 ? match.team1Id : null;
+    if (!match.team1Id && match.team2Id) return roundNumber === 1 ? match.team2Id : null;
     if (!score) return null;
     if (!isFinal || !bestOfThree) {
         if (!Number.isInteger(score.game1_score1) || !Number.isInteger(score.game1_score2)) return null;
@@ -1156,6 +1240,15 @@ function playoffMatchWinner(match, score, isFinal, bestOfThree) {
     if (wins1 >= 2) return match.team1Id;
     if (wins2 >= 2) return match.team2Id;
     return null;
+}
+
+function playoffMatchLoser(match, score, isFinal, bestOfThree, roundNumber) {
+    if (!match.team1Id && !match.team2Id) return null;
+    if (match.team1Id && !match.team2Id) return null;
+    if (!match.team1Id && match.team2Id) return null;
+    const winner = playoffMatchWinner(match, score, isFinal, bestOfThree, roundNumber);
+    if (!winner) return null;
+    return winner === match.team1Id ? match.team2Id : match.team1Id;
 }
 
 function computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree) {
@@ -1187,7 +1280,7 @@ function computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree) {
         });
         rounds.push(roundMatches);
 
-        const winners = roundMatches.map(match => playoffMatchWinner(match, match.score, isFinal, bestOfThree));
+        const winners = roundMatches.map(match => playoffMatchWinner(match, match.score, isFinal, bestOfThree, round));
         if (round < totalRounds) {
             const next = [];
             for (let i = 0; i < winners.length; i += 2) {
@@ -1225,7 +1318,7 @@ function playoffRoundLabel(bracketSize, roundNumber) {
     return `Round ${roundNumber}`;
 }
 
-async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin) {
+async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll = false, preserveScrollLeft = null) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!roundsContainer) return;
@@ -1237,10 +1330,15 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
     const teamsMap = new Map((playoff.teams || []).map(team => [team.team_id, team.team_name || 'Team']));
     const rounds = computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree);
     const totalRounds = Math.log2(bracketSize);
+    const scoreMap = buildPlayoffScoreMap(scores);
 
+    roundsContainer.dataset.rendering = 'true';
     roundsContainer.innerHTML = rounds.map((roundMatches, roundIndex) => {
         const roundNumber = roundIndex + 1;
         const isFinal = roundNumber === totalRounds;
+        const nameFormatter = isFinal && bestOfThree
+            ? (value) => formatTeamNameLinesShort(value, 13)
+            : formatTeamNameLines;
         const matchesHtml = roundMatches.map(match => {
             const team1Name = teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD');
             const team2Name = teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD');
@@ -1255,58 +1353,150 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const team1Score3 = score.game3_score1;
             const team2Score3 = score.game3_score2;
 
-            const renderInputs = (teamSlot, values) => {
+            const renderInputs = (teamSlot, values, allowBestOfThree) => {
                 return `
                     <div class="flex items-center gap-2">
                         ${scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 1, values[0], canEdit)}
-                        ${isFinal && bestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 2, values[1], canEdit) : ''}
-                        ${isFinal && bestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 3, values[2], canEdit) : ''}
+                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 2, values[1], canEdit) : ''}
+                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 3, values[2], canEdit) : ''}
                     </div>
                 `;
             };
 
             if (match.team1Id && !match.team2Id) {
+                if (roundNumber > 1) {
+                    return `
+                        <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                            <div class="flex items-start justify-between gap-3 text-gray-600">
+                                ${nameFormatter(team1Name)}
+                                ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
+                            </div>
+                            <div class="h-px bg-ocean-blue/50"></div>
+                            <div class="flex items-start justify-between gap-3 text-gray-500">
+                                <span>TBD</span>
+                                ${renderInputs(2, [null, null, null], isFinal && bestOfThree)}
+                            </div>
+                        </div>
+                    `;
+                }
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
-                        ${formatTeamNameLines(team1Name)}
+                        ${nameFormatter(team1Name)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
                 `;
             }
             if (!match.team1Id && match.team2Id) {
+                if (roundNumber > 1) {
+                    return `
+                        <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                            <div class="flex items-start justify-between gap-3 text-gray-500">
+                                <span>TBD</span>
+                                ${renderInputs(1, [null, null, null], isFinal && bestOfThree)}
+                            </div>
+                            <div class="h-px bg-ocean-blue/50"></div>
+                            <div class="flex items-start justify-between gap-3 text-gray-600">
+                                ${nameFormatter(team2Name)}
+                                ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
+                            </div>
+                        </div>
+                    `;
+                }
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
-                        ${formatTeamNameLines(team2Name)}
+                        ${nameFormatter(team2Name)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
                 `;
             }
             if (!match.team1Id && !match.team2Id) {
                 return `
-                    <div class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-500">
-                        <span>TBD</span>
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                        <div class="flex items-start justify-between gap-3 text-gray-500">
+                            <span>TBD</span>
+                        </div>
+                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="flex items-start justify-between gap-3 text-gray-500">
+                            <span>TBD</span>
+                        </div>
                     </div>
                 `;
             }
             return `
                 <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                     <div class="flex items-start justify-between gap-3 text-gray-600">
-                        ${formatTeamNameLines(team1Name)}
-                        ${renderInputs(1, [team1Score1, team1Score2, team1Score3])}
+                        ${nameFormatter(team1Name)}
+                        ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
                     </div>
                     <div class="h-px bg-ocean-blue/50"></div>
                     <div class="flex items-start justify-between gap-3 text-gray-600">
-                        ${formatTeamNameLines(team2Name)}
-                        ${renderInputs(2, [team2Score1, team2Score2, team2Score3])}
+                        ${nameFormatter(team2Name)}
+                        ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
                     </div>
                 </div>
             `;
         }).join('');
 
+        let bronzeHtml = '';
+        if (isFinal && bracketSize >= 4) {
+            const semiRound = rounds[totalRounds - 2] || [];
+            const semiMatches = semiRound.map((match, index) => ({
+                ...match,
+                score: scoreMap.get(`${totalRounds - 1}-${match.matchNumber}`) || match.score || null,
+                matchIndex: index
+            }));
+            const losers = semiMatches.map(match => playoffMatchLoser(match, match.score, false, false, totalRounds - 1));
+            const bronzeTeam1 = losers[0] || null;
+            const bronzeTeam2 = losers[1] || null;
+            const bronzeScore = scoreMap.get(`${totalRounds}-2`) || null;
+            const bronzeTeam1Name = teamsMap.get(bronzeTeam1) || (bronzeTeam1 ? 'Team' : 'TBD');
+            const bronzeTeam2Name = teamsMap.get(bronzeTeam2) || (bronzeTeam2 ? 'Team' : 'TBD');
+            const bronzeTeam1Players = teamPlayers.get(bronzeTeam1) || [];
+            const bronzeTeam2Players = teamPlayers.get(bronzeTeam2) || [];
+            const bronzeCanEdit = isAdmin || (currentUserId && bronzeTeam1 && bronzeTeam2 && (bronzeTeam1Players.includes(currentUserId) || bronzeTeam2Players.includes(currentUserId)));
+            const bronzeInputs = (teamSlot, value) => `
+                <div class="flex items-center gap-2">
+                    ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, value, bronzeCanEdit)}
+                </div>
+            `;
+
+            if (bronzeTeam1 || bronzeTeam2) {
+                bronzeHtml = `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                            ${formatTeamNameLines(bronzeTeam1Name)}
+                            ${bronzeInputs(1, bronzeScore ? bronzeScore.game1_score1 : null)}
+                        </div>
+                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="flex items-start justify-between gap-3 text-gray-600">
+                            ${formatTeamNameLines(bronzeTeam2Name)}
+                            ${bronzeInputs(2, bronzeScore ? bronzeScore.game1_score2 : null)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                bronzeHtml = `
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                        <div class="flex items-start justify-between gap-3 text-gray-500">
+                            <span>TBD</span>
+                        </div>
+                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="flex items-start justify-between gap-3 text-gray-500">
+                            <span>TBD</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+        }
+
         return `
             <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                 <h5 class="text-lg font-semibold text-white mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
+                ${isFinal && bracketSize >= 4 ? '<div class="text-xs uppercase tracking-wide text-white/60 mb-2">Gold Match</div>' : ''}
                 <div class="space-y-4">${matchesHtml || '<div class="text-sm text-white/70">No matches scheduled.</div>'}</div>
+                ${isFinal && bracketSize >= 4 ? '<div class="text-xs uppercase tracking-wide text-white/60 mt-4 mb-2">Bronze Match</div>' : ''}
+                ${bronzeHtml}
             </div>
         `;
     }).join('');
@@ -1315,17 +1505,24 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         indicators.innerHTML = rounds.map((_, index) => `
             <button
                 type="button"
-                class="round-indicator ${index === 0 ? 'is-active' : ''}"
+                class="round-indicator"
                 aria-label="Go to ${playoffRoundLabel(bracketSize, index + 1)}"
                 onclick="scrollToRound('${tournamentId}', ${index})"
             ></button>
         `).join('');
     }
 
+    if (resetScroll) {
+        roundsContainer.scrollLeft = 0;
+    } else if (preserveScrollLeft !== null) {
+        roundsContainer.scrollLeft = preserveScrollLeft;
+    }
+
     if (!roundsContainer.dataset.scrollListener) {
         roundsContainer.dataset.scrollListener = 'true';
         let ticking = false;
         roundsContainer.addEventListener('scroll', () => {
+            if (roundsContainer.dataset.rendering === 'true') return;
             if (ticking) return;
             ticking = true;
             requestAnimationFrame(() => {
@@ -1335,7 +1532,10 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         });
     }
 
-    updateRoundIndicator(tournamentId);
+    requestAnimationFrame(() => {
+        updateRoundIndicator(tournamentId);
+        roundsContainer.dataset.rendering = 'false';
+    });
 }
 
 let scoreSaveTimeout;
@@ -1398,7 +1598,7 @@ async function submitPlayoffScore(tournamentId, roundNumber, matchNumber) {
             const error = await response.json();
             console.error('Playoff score update error:', error);
         } else {
-            renderTournamentView(tournamentId, { force: true });
+            renderTournamentView(tournamentId, { force: true, preserveScroll: true });
         }
     } catch (error) {
         console.error('Playoff score update error:', error);
@@ -1434,7 +1634,7 @@ async function submitScore(tournamentId, matchId) {
             const error = await response.json();
             console.error('Score update error:', error);
         } else {
-            renderTournamentView(tournamentId, { force: true });
+            renderTournamentView(tournamentId, { force: true, preserveScroll: true });
         }
     } catch (error) {
         console.error('Score update error:', error);
@@ -1553,8 +1753,13 @@ async function renderRegistrationList(tournamentId) {
             if (window.authProfile && window.authProfile.isAdmin) {
                 const resetButton = document.createElement('button');
                 resetButton.className = 'text-xs font-semibold text-white bg-ocean-blue px-3 py-1 rounded-full hover:bg-ocean-teal transition';
-                resetButton.textContent = 'Return to Registration';
-                resetButton.onclick = () => resetRoundRobin(tournamentId);
+                if (playoff && playoff.status === 'playoff') {
+                    resetButton.textContent = 'Return to Round Robin';
+                    resetButton.onclick = () => resetPlayoff(tournamentId);
+                } else {
+                    resetButton.textContent = 'Return to Registration';
+                    resetButton.onclick = () => resetRoundRobin(tournamentId);
+                }
                 tournamentActions.appendChild(resetButton);
             }
         }
