@@ -1,5 +1,6 @@
 ALTER TABLE tournament_settings ADD COLUMN playoff_teams INTEGER;
 ALTER TABLE tournament_settings ADD COLUMN playoff_best_of_three INTEGER DEFAULT 0;
+ALTER TABLE tournament_settings ADD COLUMN playoff_best_of_three_bronze INTEGER DEFAULT 0;
 
 CREATE TABLE playoff_state (
   tournament_id TEXT PRIMARY KEY,
@@ -7,6 +8,7 @@ CREATE TABLE playoff_state (
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   playoff_teams INTEGER,
   best_of_three INTEGER DEFAULT 0,
+  bronze_best_of_three INTEGER DEFAULT 0,
   bracket_size INTEGER,
   seed_order TEXT,
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE

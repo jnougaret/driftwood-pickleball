@@ -98,6 +98,7 @@ CREATE TABLE tournament_settings (
   rounds INTEGER NOT NULL,
   playoff_teams INTEGER,
   playoff_best_of_three INTEGER DEFAULT 0,
+  playoff_best_of_three_bronze INTEGER DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
 );
@@ -108,6 +109,7 @@ CREATE TABLE playoff_state (
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   playoff_teams INTEGER,
   best_of_three INTEGER DEFAULT 0,
+  bronze_best_of_three INTEGER DEFAULT 0,
   bracket_size INTEGER,
   seed_order TEXT,
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE

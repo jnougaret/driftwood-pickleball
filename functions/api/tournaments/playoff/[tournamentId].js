@@ -15,7 +15,7 @@ async function getUserById(env, userId) {
 
 async function getPlayoffState(env, tournamentId) {
     return await env.DB.prepare(
-        'SELECT status, playoff_teams, best_of_three, bracket_size, seed_order FROM playoff_state WHERE tournament_id = ?'
+        'SELECT status, playoff_teams, best_of_three, bronze_best_of_three, bracket_size, seed_order FROM playoff_state WHERE tournament_id = ?'
     ).bind(tournamentId).first();
 }
 
@@ -187,6 +187,7 @@ export async function onRequestGet({ env, params }) {
         seedOrder: playoffState.seed_order ? JSON.parse(playoffState.seed_order) : [],
         playoffTeams: playoffState.playoff_teams,
         bestOfThree: playoffState.best_of_three === 1,
+        bestOfThreeBronze: playoffState.bronze_best_of_three === 1,
         bracketSize: playoffState.bracket_size,
         scores,
         teams
@@ -248,7 +249,9 @@ export async function onRequestPost({ request, env, params }) {
 
     const isFinal = roundNumber === totalRounds;
     const isGoldMatch = matchNumber === 1;
+    const isBronzeMatch = matchNumber === 2 && isFinal && bracketSize >= 4;
     const bestOfThree = playoffState.best_of_three === 1 && isFinal && isGoldMatch;
+    const bestOfThreeBronze = playoffState.bronze_best_of_three === 1 && isBronzeMatch;
 
     const normalizeScore = (value) => (Number.isInteger(value) ? value : null);
     const game1 = games.game1 || {};
@@ -277,7 +280,7 @@ export async function onRequestPost({ request, env, params }) {
     if (!Number.isInteger(game1Score1) || !Number.isInteger(game1Score2)) {
         return jsonResponse({ error: 'Game 1 scores required' }, 400);
     }
-    if (!bestOfThree) {
+    if (!bestOfThree && !bestOfThreeBronze) {
         if (game2Score1 !== null || game2Score2 !== null || game3Score1 !== null || game3Score2 !== null) {
             return jsonResponse({ error: 'Only finals support best of three' }, 400);
         }
@@ -301,10 +304,10 @@ export async function onRequestPost({ request, env, params }) {
         matchNumber,
         game1Score1,
         game1Score2,
-        bestOfThree ? game2Score1 : null,
-        bestOfThree ? game2Score2 : null,
-        bestOfThree ? game3Score1 : null,
-        bestOfThree ? game3Score2 : null
+        (bestOfThree || bestOfThreeBronze) ? game2Score1 : null,
+        (bestOfThree || bestOfThreeBronze) ? game2Score2 : null,
+        (bestOfThree || bestOfThreeBronze) ? game3Score1 : null,
+        (bestOfThree || bestOfThreeBronze) ? game3Score2 : null
     ).run();
 
     return jsonResponse({ success: true });

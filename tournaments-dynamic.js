@@ -293,7 +293,8 @@ async function fetchTournamentSettings(tournamentId) {
             rounds: data.rounds,
             status: data.status,
             playoffTeams: data.playoffTeams,
-            playoffBestOfThree: data.playoffBestOfThree
+            playoffBestOfThree: data.playoffBestOfThree,
+            playoffBestOfThreeBronze: data.playoffBestOfThreeBronze
         }));
     }
     return data;
@@ -615,13 +616,20 @@ async function updatePlayoffTeams(tournamentId, value) {
     await persistPlayoffSettings(tournamentId);
 }
 
-async function togglePlayoffBestOfThree(tournamentId) {
-    const button = document.getElementById(`${tournamentId}-playoff-best-of-three`);
+async function togglePlayoffBestOfThree(tournamentId, mode) {
+    const buttonId = mode === 'bronze'
+        ? `${tournamentId}-playoff-best-of-three-bronze`
+        : `${tournamentId}-playoff-best-of-three`;
+    const button = document.getElementById(buttonId);
     if (!button) return;
     const isOn = button.dataset.enabled === 'true';
     const next = !isOn;
     button.dataset.enabled = next ? 'true' : 'false';
-    button.textContent = `Final: Best of 3 Games (${next ? 'On' : 'Off'})`;
+    if (mode === 'bronze') {
+        button.textContent = `Bronze match: Best of 3 (${next ? 'On' : 'Off'})`;
+    } else {
+        button.textContent = `Gold match: Best of 3 (${next ? 'On' : 'Off'})`;
+    }
     button.classList.toggle('bg-ocean-blue', next);
     button.classList.toggle('text-white', next);
     button.classList.toggle('bg-white', !next);
@@ -678,19 +686,23 @@ async function flushPlayoffSettingsSaves() {
     await Promise.all(tournaments.map(async tournamentId => {
         const playoffTeamsInput = document.getElementById(`${tournamentId}-playoff-teams`);
         const bestOfThreeButton = document.getElementById(`${tournamentId}-playoff-best-of-three`);
-        if (!playoffTeamsInput || !bestOfThreeButton) return;
+        const bestOfThreeBronzeButton = document.getElementById(`${tournamentId}-playoff-best-of-three-bronze`);
+        if (!playoffTeamsInput || !bestOfThreeButton || !bestOfThreeBronzeButton) return;
         const bestOfThree = bestOfThreeButton.dataset.enabled === 'true';
+        const bestOfThreeBronze = bestOfThreeBronzeButton.dataset.enabled === 'true';
         try {
             await saveTournamentSettings(tournamentId, {
                 playoffTeams: Number(playoffTeamsInput.value),
-                playoffBestOfThree: bestOfThree
+                playoffBestOfThree: bestOfThree,
+                playoffBestOfThreeBronze: bestOfThreeBronze
             });
             const cached = localStorage.getItem(`tournament-settings-${tournamentId}`);
             const cachedSettings = cached ? JSON.parse(cached) : {};
             localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
                 ...cachedSettings,
                 playoffTeams: Number(playoffTeamsInput.value),
-                playoffBestOfThree: bestOfThree
+                playoffBestOfThree: bestOfThree,
+                playoffBestOfThreeBronze: bestOfThreeBronze
             }));
         } catch (error) {
             console.error('Save playoff settings error:', error);
@@ -734,11 +746,14 @@ async function startPlayoff(tournamentId) {
     try {
         const playoffTeamsInput = document.getElementById(`${tournamentId}-playoff-teams`);
         const bestOfThreeButton = document.getElementById(`${tournamentId}-playoff-best-of-three`);
-        if (playoffTeamsInput && bestOfThreeButton) {
+        const bestOfThreeBronzeButton = document.getElementById(`${tournamentId}-playoff-best-of-three-bronze`);
+        if (playoffTeamsInput && bestOfThreeButton && bestOfThreeBronzeButton) {
             const bestOfThree = bestOfThreeButton.dataset.enabled === 'true';
+            const bestOfThreeBronze = bestOfThreeBronzeButton.dataset.enabled === 'true';
             await saveTournamentSettings(tournamentId, {
                 playoffTeams: Number(playoffTeamsInput.value),
-                playoffBestOfThree: bestOfThree
+                playoffBestOfThree: bestOfThree,
+                playoffBestOfThreeBronze: bestOfThreeBronze
             });
         }
 
@@ -927,9 +942,6 @@ async function renderTournamentView(tournamentId, options = {}) {
 
         const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
         const roundsWithResults = [...rounds, 'results'];
-        if (isAdmin) {
-            roundsWithResults.push('playoff-settings');
-        }
         const resultsIndex = rounds.length;
         const stats = new Map();
         (data.teams || []).forEach(team => {
@@ -994,14 +1006,6 @@ async function renderTournamentView(tournamentId, options = {}) {
                     `;
                 }).join('');
 
-                return `
-                    <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
-                        <h5 class="text-lg font-semibold text-white mb-3">Results</h5>
-                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
-                    </div>
-                `;
-            }
-            if (round === 'playoff-settings') {
                 const totalTeams = standings.length;
                 const maxPlayoffTeams = Math.min(8, totalTeams);
                 const effectiveMaxPlayoffTeams = Math.max(2, maxPlayoffTeams);
@@ -1011,41 +1015,57 @@ async function renderTournamentView(tournamentId, options = {}) {
                     ? savedPlayoffTeams
                     : defaultPlayoffTeams;
                 const bestOfThree = settings.playoffBestOfThree === true;
+                const bestOfThreeBronze = settings.playoffBestOfThreeBronze === true;
+                const playoffControls = isAdmin ? `
+                    <div class="text-lg font-semibold text-white mb-3">Playoff Settings</div>
+                    <div class="bg-white rounded-lg p-3 space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700"># of playoff teams</span>
+                                <span class="text-sm text-gray-500" id="${tournamentId}-playoff-teams-value">${playoffTeamsValue}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="2"
+                                max="${effectiveMaxPlayoffTeams}"
+                                step="1"
+                                value="${playoffTeamsValue}"
+                                id="${tournamentId}-playoff-teams"
+                                class="w-full"
+                                oninput="updatePlayoffTeams('${tournamentId}', this.value)"
+                            >
+                        </div>
+                        <button
+                            id="${tournamentId}-playoff-best-of-three"
+                            class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThree ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
+                            onclick="togglePlayoffBestOfThree('${tournamentId}', 'gold')"
+                            data-enabled="${bestOfThree ? 'true' : 'false'}"
+                        >
+                            Gold match: Best of 3 (${bestOfThree ? 'On' : 'Off'})
+                        </button>
+                        <button
+                            id="${tournamentId}-playoff-best-of-three-bronze"
+                            class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThreeBronze ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
+                            onclick="togglePlayoffBestOfThree('${tournamentId}', 'bronze')"
+                            data-enabled="${bestOfThreeBronze ? 'true' : 'false'}"
+                        >
+                            Bronze match: Best of 3 (${bestOfThreeBronze ? 'On' : 'Off'})
+                        </button>
+                        <button
+                            class="w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                            onclick="startPlayoff('${tournamentId}')"
+                        >
+                            Start Playoff
+                        </button>
+                    </div>
+                    <div class="h-4"></div>
+                ` : '';
+
                 return `
                     <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
-                        <h5 class="text-lg font-semibold text-white mb-3">Playoff Settings</h5>
-                        <div class="bg-white rounded-lg p-3 space-y-3">
-                            <div>
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-sm font-medium text-gray-700"># of playoff teams</span>
-                                    <span class="text-sm text-gray-500" id="${tournamentId}-playoff-teams-value">${playoffTeamsValue}</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="2"
-                                    max="${effectiveMaxPlayoffTeams}"
-                                    step="1"
-                                    value="${playoffTeamsValue}"
-                                    id="${tournamentId}-playoff-teams"
-                                    class="w-full"
-                                    oninput="updatePlayoffTeams('${tournamentId}', this.value)"
-                                >
-                            </div>
-                            <button
-                                id="${tournamentId}-playoff-best-of-three"
-                                class="w-full border border-gray-200 text-sm font-semibold py-2 rounded-lg ${bestOfThree ? 'bg-ocean-blue text-white' : 'bg-white text-ocean-blue'}"
-                                onclick="togglePlayoffBestOfThree('${tournamentId}')"
-                                data-enabled="${bestOfThree ? 'true' : 'false'}"
-                            >
-                                Final: Best of 3 Games (${bestOfThree ? 'On' : 'Off'})
-                            </button>
-                            <button
-                                class="w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
-                                onclick="startPlayoff('${tournamentId}')"
-                            >
-                                Start Playoff
-                            </button>
-                        </div>
+                        ${playoffControls}
+                        <div class="text-lg font-semibold text-white mb-3">Results</div>
+                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
                     </div>
                 `;
             }
@@ -1091,7 +1111,7 @@ async function renderTournamentView(tournamentId, options = {}) {
                 <button
                     type="button"
                     class="round-indicator"
-                    aria-label="${round === 'results' ? 'Go to results' : round === 'playoff-settings' ? 'Go to playoff settings' : `Go to round ${round}`}"
+                    aria-label="${round === 'results' ? 'Go to results' : `Go to round ${round}`}"
                     onclick="scrollToRound('${tournamentId}', ${index})"
                 ></button>
             `).join('');
@@ -1326,7 +1346,8 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
     const seedOrder = playoff.seedOrder || [];
     const scores = playoff.scores || [];
     const bracketSize = playoff.bracketSize || 2;
-    const bestOfThree = playoff.bestOfThree === true;
+        const bestOfThree = playoff.bestOfThree === true;
+        const bestOfThreeBronze = playoff.bestOfThreeBronze === true;
     const teamsMap = new Map((playoff.teams || []).map(team => [team.team_id, team.team_name || 'Team']));
     const rounds = computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree);
     const totalRounds = Math.log2(bracketSize);
@@ -1337,6 +1358,9 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         const roundNumber = roundIndex + 1;
         const isFinal = roundNumber === totalRounds;
         const nameFormatter = isFinal && bestOfThree
+            ? (value) => formatTeamNameLinesShort(value, 13)
+            : formatTeamNameLines;
+        const bronzeNameFormatter = isFinal && bestOfThreeBronze
             ? (value) => formatTeamNameLinesShort(value, 13)
             : formatTeamNameLines;
         const matchesHtml = roundMatches.map(match => {
@@ -1373,7 +1397,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
                             <div class="flex items-start justify-between gap-3 text-gray-500">
-                                <span>TBD</span>
+                                <span class="text-sm">TBD</span>
                                 ${renderInputs(2, [null, null, null], isFinal && bestOfThree)}
                             </div>
                         </div>
@@ -1391,7 +1415,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                     return `
                         <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                             <div class="flex items-start justify-between gap-3 text-gray-500">
-                                <span>TBD</span>
+                                <span class="text-sm">TBD</span>
                                 ${renderInputs(1, [null, null, null], isFinal && bestOfThree)}
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
@@ -1413,11 +1437,11 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span>TBD</span>
+                            <span class="text-sm">TBD</span>
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
                         <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span>TBD</span>
+                            <span class="text-sm">TBD</span>
                         </div>
                     </div>
                 `;
@@ -1454,9 +1478,11 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const bronzeTeam1Players = teamPlayers.get(bronzeTeam1) || [];
             const bronzeTeam2Players = teamPlayers.get(bronzeTeam2) || [];
             const bronzeCanEdit = isAdmin || (currentUserId && bronzeTeam1 && bronzeTeam2 && (bronzeTeam1Players.includes(currentUserId) || bronzeTeam2Players.includes(currentUserId)));
-            const bronzeInputs = (teamSlot, value) => `
+            const bronzeInputs = (teamSlot, values) => `
                 <div class="flex items-center gap-2">
-                    ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, value, bronzeCanEdit)}
+                    ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, values[0], bronzeCanEdit)}
+                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 2, values[1], bronzeCanEdit) : ''}
+                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 3, values[2], bronzeCanEdit) : ''}
                 </div>
             `;
 
@@ -1464,13 +1490,21 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 bronzeHtml = `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-start justify-between gap-3 text-gray-600">
-                            ${formatTeamNameLines(bronzeTeam1Name)}
-                            ${bronzeInputs(1, bronzeScore ? bronzeScore.game1_score1 : null)}
+                            ${bronzeNameFormatter(bronzeTeam1Name)}
+                            ${bronzeInputs(1, [
+                                bronzeScore ? bronzeScore.game1_score1 : null,
+                                bronzeScore ? bronzeScore.game2_score1 : null,
+                                bronzeScore ? bronzeScore.game3_score1 : null
+                            ])}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
                         <div class="flex items-start justify-between gap-3 text-gray-600">
-                            ${formatTeamNameLines(bronzeTeam2Name)}
-                            ${bronzeInputs(2, bronzeScore ? bronzeScore.game1_score2 : null)}
+                            ${bronzeNameFormatter(bronzeTeam2Name)}
+                            ${bronzeInputs(2, [
+                                bronzeScore ? bronzeScore.game1_score2 : null,
+                                bronzeScore ? bronzeScore.game2_score2 : null,
+                                bronzeScore ? bronzeScore.game3_score2 : null
+                            ])}
                         </div>
                     </div>
                 `;
@@ -1478,11 +1512,11 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 bronzeHtml = `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span>TBD</span>
+                            <span class="text-sm">TBD</span>
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
                         <div class="flex items-start justify-between gap-3 text-gray-500">
-                            <span>TBD</span>
+                            <span class="text-sm">TBD</span>
                         </div>
                     </div>
                 `;

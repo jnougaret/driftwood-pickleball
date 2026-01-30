@@ -59,7 +59,7 @@ async function getRoundRobinMatches(env, tournamentId) {
 
 async function getSettings(env, tournamentId) {
     return await env.DB.prepare(
-        'SELECT playoff_teams, playoff_best_of_three FROM tournament_settings WHERE tournament_id = ?'
+        'SELECT playoff_teams, playoff_best_of_three, playoff_best_of_three_bronze FROM tournament_settings WHERE tournament_id = ?'
     ).bind(tournamentId).first();
 }
 
@@ -159,26 +159,29 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const bestOfThree = settings?.playoff_best_of_three === 1;
+    const bestOfThreeBronze = settings?.playoff_best_of_three_bronze === 1;
     const standings = computeStandings(teams, await getRoundRobinMatches(env, tournamentId));
     const seededTeams = standings.slice(0, playoffTeams).map(team => team.teamId);
     const bracketSize = bracketSizeForTeams(playoffTeams);
 
     await env.DB.prepare(
-        `INSERT INTO playoff_state (tournament_id, status, playoff_teams, best_of_three, bracket_size, seed_order)
-         VALUES (?, 'playoff', ?, ?, ?, ?)
+        `INSERT INTO playoff_state (tournament_id, status, playoff_teams, best_of_three, bracket_size, seed_order, bronze_best_of_three)
+         VALUES (?, 'playoff', ?, ?, ?, ?, ?)
          ON CONFLICT(tournament_id) DO UPDATE SET
             status = 'playoff',
             playoff_teams = excluded.playoff_teams,
             best_of_three = excluded.best_of_three,
             bracket_size = excluded.bracket_size,
             seed_order = excluded.seed_order,
+            bronze_best_of_three = excluded.bronze_best_of_three,
             started_at = CURRENT_TIMESTAMP`
     ).bind(
         tournamentId,
         playoffTeams,
         bestOfThree ? 1 : 0,
         bracketSize,
-        JSON.stringify(seededTeams)
+        JSON.stringify(seededTeams),
+        bestOfThreeBronze ? 1 : 0
     ).run();
 
     await env.DB.prepare(
