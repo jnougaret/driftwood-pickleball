@@ -148,7 +148,7 @@ function createTournamentCard(tournament, type) {
                             <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
                         </div>
-                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
+                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-0 md:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
                     </div>
                 </div>
             </div>
@@ -1072,7 +1072,7 @@ async function renderTournamentView(tournamentId, options = {}) {
                 ` : '';
 
                 return `
-                    <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                    <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                         ${playoffControls}
                         <div class="text-lg font-semibold text-white mb-3">Results</div>
                         <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
@@ -1109,7 +1109,7 @@ async function renderTournamentView(tournamentId, options = {}) {
             ` : '';
 
             return `
-                <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                     <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
                     <div class="space-y-2">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-white/70">No matches scheduled.</div>' : '')}</div>
                 </div>
@@ -1509,7 +1509,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         }
 
         return `
-            <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+            <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                 <h5 class="text-lg font-semibold text-white mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
                 ${isFinal && bracketSize >= 4 ? '<div class="text-xs uppercase tracking-wide text-white/60 mb-2">Gold Match</div>' : ''}
                 <div class="space-y-4">${matchesHtml || '<div class="text-sm text-white/70">No matches scheduled.</div>'}</div>
