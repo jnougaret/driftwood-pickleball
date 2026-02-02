@@ -195,6 +195,13 @@ async function signIn() {
     try {
         sessionStorage.setItem('redirectToProfileOnSignIn', '1');
         sessionStorage.setItem('signInReturnUrl', window.location.href);
+        // Use same-tab redirect flow to avoid extra tabs on mobile browsers.
+        if (clerkInstance && typeof clerkInstance.redirectToSignIn === 'function') {
+            await clerkInstance.redirectToSignIn({
+                redirectUrl: window.location.href
+            });
+            return;
+        }
         await clerkInstance.openSignIn({
             redirectUrl: window.location.href
         });
