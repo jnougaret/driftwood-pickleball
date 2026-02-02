@@ -1852,7 +1852,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
 
         }
 
-        const archiveButton = isFinal && isAdmin && playoff.isComplete
+        const archiveButton = isFinal && isAdmin
             ? `
                 <button
                     class="mt-4 w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
