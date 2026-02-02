@@ -208,7 +208,7 @@ function createTournamentCard(tournament, type) {
                 <button
                     id="${tournament.id}-edit-details-button"
                     onclick="toggleTournamentDetailsEditor('${tournament.id}')"
-                    class="hidden mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-ocean-blue hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+                    class="hidden block w-fit ml-auto mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-ocean-blue hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
                 >
                     Edit Details
                 </button>
