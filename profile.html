@@ -33,6 +33,37 @@
             }
         }
     </script>
+
+    <style>
+        :root {
+            --sand-50: #f8f3e7;
+            --sand-100: #efe4cf;
+            --sand-200: #e6d5b5;
+            --sand-300: #d7c39b;
+            --sand-400: #b99768;
+            --sand-500: #9a7b50;
+            --sand-600: #7f6340;
+            --sand-700: #614b32;
+        }
+
+        .bg-gray-50 { background-color: var(--sand-50) !important; }
+        .bg-gray-100 { background-color: var(--sand-100) !important; }
+        .bg-gray-200 { background-color: var(--sand-200) !important; }
+        .bg-gray-300 { background-color: var(--sand-300) !important; }
+
+        .border-gray-200 { border-color: var(--sand-200) !important; }
+        .border-gray-300 { border-color: var(--sand-300) !important; }
+        .border-gray-400 { border-color: var(--sand-400) !important; }
+
+        .text-gray-400 { color: var(--sand-500) !important; }
+        .text-gray-500 { color: var(--sand-500) !important; }
+        .text-gray-600 { color: var(--sand-600) !important; }
+        .text-gray-700 { color: var(--sand-700) !important; }
+
+        .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+            border-color: var(--sand-200) !important;
+        }
+    </style>
 </head>
 <body class="bg-gray-50">
     <!-- Navigation -->
