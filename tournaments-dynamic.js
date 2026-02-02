@@ -1086,12 +1086,12 @@ async function renderTournamentView(tournamentId, options = {}) {
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team1_name || 'Team 1')}
-                            ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit)}
+                            ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit, match.version)}
                         </div>
                         <div class="h-px bg-ocean-blue/50"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team2_name || 'Team 2')}
-                            ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit)}
+                            ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit, match.version)}
                         </div>
                     </div>
                 `;
@@ -1137,12 +1137,14 @@ function scrollToRound(tournamentId, index) {
 }
 
 const tournamentPollers = new Map();
+const TOURNAMENT_POLL_INTERVAL_MS = 1200;
 
 function startTournamentPolling(tournamentId) {
     if (tournamentPollers.has(tournamentId)) return;
     const interval = setInterval(() => {
+        if (document.hidden) return;
         renderTournamentView(tournamentId);
-    }, 5000);
+    }, TOURNAMENT_POLL_INTERVAL_MS);
     tournamentPollers.set(tournamentId, interval);
 }
 
@@ -1154,7 +1156,7 @@ function stopTournamentPolling(tournamentId) {
     }
 }
 
-function scoreInputHtml(tournamentId, matchId, slot, value, canEdit) {
+function scoreInputHtml(tournamentId, matchId, slot, value, canEdit, version = 0) {
     const val = Number.isInteger(value) ? value : '';
     const disabled = canEdit ? '' : 'disabled';
     const disabledClass = '';
@@ -1164,6 +1166,7 @@ function scoreInputHtml(tournamentId, matchId, slot, value, canEdit) {
         class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center ${disabledClass}"
         value="${val}"
         id="${tournamentId}-${matchId}-score${slot}"
+        data-version="${Number.isInteger(version) ? version : 0}"
         ${disabled}
         oninput="updateScore('${tournamentId}', '${matchId}')"
     >`;
@@ -1266,7 +1269,7 @@ function computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree) {
     return rounds;
 }
 
-function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot, gameIndex, value, canEdit) {
+function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot, gameIndex, value, canEdit, version = 0) {
     const val = Number.isInteger(value) ? value : '';
     const disabled = canEdit ? '' : 'disabled';
     return `<input
@@ -1275,6 +1278,7 @@ function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot,
         class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center"
         value="${val}"
         id="${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}"
+        data-version="${Number.isInteger(version) ? version : 0}"
         ${disabled}
         oninput="updatePlayoffScore('${tournamentId}', ${roundNumber}, ${matchNumber})"
     >`;
@@ -1317,6 +1321,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const team2Players = teamPlayers.get(match.team2Id) || [];
             const canEdit = isAdmin || (currentUserId && match.team1Id && match.team2Id && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
             const score = match.score || {};
+            const matchVersion = Number.isInteger(score.version) ? score.version : 0;
             const team1Score1 = score.game1_score1;
             const team2Score1 = score.game1_score2;
             const team1Score2 = score.game2_score1;
@@ -1324,12 +1329,12 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const team1Score3 = score.game3_score1;
             const team2Score3 = score.game3_score2;
 
-            const renderInputs = (teamSlot, values, allowBestOfThree) => {
+            const renderInputs = (teamSlot, values, allowBestOfThree, version) => {
                 return `
                     <div class="flex items-center gap-2">
-                        ${scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 1, values[0], canEdit)}
-                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 2, values[1], canEdit) : ''}
-                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 3, values[2], canEdit) : ''}
+                        ${scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 1, values[0], canEdit, version)}
+                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 2, values[1], canEdit, version) : ''}
+                        ${allowBestOfThree ? scoreInputHtmlPlayoff(tournamentId, roundNumber, match.matchNumber, teamSlot, 3, values[2], canEdit, version) : ''}
                     </div>
                 `;
             };
@@ -1340,12 +1345,12 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                         <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                             <div class="flex items-center justify-between gap-3 text-gray-600">
                                 ${renderTeamName(team1Name, nameFormatter)}
-                                ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
+                                ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree, matchVersion)}
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
                             <div class="flex items-center justify-between gap-3 text-gray-500">
                                 ${formatTbdLine()}
-                                ${renderInputs(2, [null, null, null], isFinal && bestOfThree)}
+                                ${renderInputs(2, [null, null, null], isFinal && bestOfThree, matchVersion)}
                             </div>
                         </div>
                     `;
@@ -1363,12 +1368,12 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                         <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                             <div class="flex items-center justify-between gap-3 text-gray-500">
                                 ${formatTbdLine()}
-                                ${renderInputs(1, [null, null, null], isFinal && bestOfThree)}
+                                ${renderInputs(1, [null, null, null], isFinal && bestOfThree, matchVersion)}
                             </div>
                             <div class="h-px bg-ocean-blue/50"></div>
                             <div class="flex items-center justify-between gap-3 text-gray-600">
                                 ${renderTeamName(team2Name, nameFormatter)}
-                                ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
+                                ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree, matchVersion)}
                             </div>
                         </div>
                     `;
@@ -1395,17 +1400,17 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             }
             return `
                 <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                    <div class="flex items-center justify-between gap-3 text-gray-600">
-                        ${renderTeamName(team1Name, nameFormatter)}
-                        ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree)}
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
+                            ${renderTeamName(team1Name, nameFormatter)}
+                            ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree, matchVersion)}
+                        </div>
+                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="flex items-center justify-between gap-3 text-gray-600">
+                            ${renderTeamName(team2Name, nameFormatter)}
+                            ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree, matchVersion)}
+                        </div>
                     </div>
-                    <div class="h-px bg-ocean-blue/50"></div>
-                    <div class="flex items-center justify-between gap-3 text-gray-600">
-                        ${renderTeamName(team2Name, nameFormatter)}
-                        ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree)}
-                    </div>
-                </div>
-            `;
+                `;
         }).join('');
 
         let bronzeHtml = '';
@@ -1424,12 +1429,13 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const bronzeTeam2Name = teamsMap.get(bronzeTeam2) || (bronzeTeam2 ? 'Team' : 'TBD');
             const bronzeTeam1Players = teamPlayers.get(bronzeTeam1) || [];
             const bronzeTeam2Players = teamPlayers.get(bronzeTeam2) || [];
+            const bronzeVersion = bronzeScore && Number.isInteger(bronzeScore.version) ? bronzeScore.version : 0;
             const bronzeCanEdit = isAdmin || (currentUserId && bronzeTeam1 && bronzeTeam2 && (bronzeTeam1Players.includes(currentUserId) || bronzeTeam2Players.includes(currentUserId)));
             const bronzeInputs = (teamSlot, values) => `
                 <div class="flex items-center gap-2">
-                    ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, values[0], bronzeCanEdit)}
-                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 2, values[1], bronzeCanEdit) : ''}
-                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 3, values[2], bronzeCanEdit) : ''}
+                    ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, values[0], bronzeCanEdit, bronzeVersion)}
+                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 2, values[1], bronzeCanEdit, bronzeVersion) : ''}
+                    ${bestOfThreeBronze ? scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 3, values[2], bronzeCanEdit, bronzeVersion) : ''}
                 </div>
             `;
 
@@ -1505,6 +1511,61 @@ function updatePlayoffScore(tournamentId, roundNumber, matchNumber) {
     }, 300);
 }
 
+function getInputVersion(input) {
+    if (!input) return 0;
+    const parsed = Number.parseInt(input.dataset.version || '0', 10);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function setRoundRobinVersion(tournamentId, matchId, version) {
+    const normalized = Number.isInteger(version) && version >= 0 ? version : 0;
+    const input1 = document.getElementById(`${tournamentId}-${matchId}-score1`);
+    const input2 = document.getElementById(`${tournamentId}-${matchId}-score2`);
+    if (input1) input1.dataset.version = String(normalized);
+    if (input2) input2.dataset.version = String(normalized);
+}
+
+function setPlayoffVersion(tournamentId, roundNumber, matchNumber, version) {
+    const normalized = Number.isInteger(version) && version >= 0 ? version : 0;
+    for (let teamSlot = 1; teamSlot <= 2; teamSlot += 1) {
+        for (let gameIndex = 1; gameIndex <= 3; gameIndex += 1) {
+            const input = document.getElementById(`${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}`);
+            if (input) {
+                input.dataset.version = String(normalized);
+            }
+        }
+    }
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, init, retries = 2) {
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+            const response = await fetch(url, init);
+            if (response.status >= 500 && attempt < retries) {
+                await delay(200 * (2 ** attempt));
+                continue;
+            }
+            return response;
+        } catch (error) {
+            if (attempt >= retries) throw error;
+            await delay(200 * (2 ** attempt));
+        }
+    }
+    throw new Error('Request failed');
+}
+
+async function readJsonSafe(response) {
+    try {
+        return await response.json();
+    } catch (error) {
+        return null;
+    }
+}
+
 async function submitPlayoffScore(tournamentId, roundNumber, matchNumber) {
     const getValue = (teamSlot, gameIndex) => {
         const input = document.getElementById(`${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}`);
@@ -1537,20 +1598,29 @@ async function submitPlayoffScore(tournamentId, roundNumber, matchNumber) {
 
     try {
         const token = await auth.getAuthToken();
-        const response = await fetch(`/api/tournaments/playoff/${tournamentId}`, {
+        const versionInput = document.getElementById(`${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t1-g1`)
+            || document.getElementById(`${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t2-g1`);
+        const expectedVersion = getInputVersion(versionInput);
+        const response = await fetchWithRetry(`/api/tournaments/playoff/${tournamentId}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ roundNumber, matchNumber, games })
+            body: JSON.stringify({ roundNumber, matchNumber, games, expectedVersion })
         });
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('Playoff score update error:', error);
-        } else {
+        const payload = await readJsonSafe(response);
+        if (response.status === 409) {
+            console.warn('Playoff score conflict; refreshing view.');
             renderTournamentView(tournamentId, { force: true, preserveScroll: true });
+            return;
         }
+        if (!response.ok) {
+            console.error('Playoff score update error:', payload || response.statusText);
+            return;
+        }
+        setPlayoffVersion(tournamentId, roundNumber, matchNumber, payload && payload.version);
+        renderTournamentView(tournamentId, { force: true, preserveScroll: true });
     } catch (error) {
         console.error('Playoff score update error:', error);
     }
@@ -1573,20 +1643,27 @@ async function submitScore(tournamentId, matchId) {
 
     try {
         const token = await auth.getAuthToken();
-        const response = await fetch(`/api/tournaments/round-robin/${tournamentId}`, {
+        const expectedVersion = getInputVersion(input1);
+        const response = await fetchWithRetry(`/api/tournaments/round-robin/${tournamentId}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ matchId, score1, score2 })
+            body: JSON.stringify({ matchId, score1, score2, expectedVersion })
         });
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('Score update error:', error);
-        } else {
+        const payload = await readJsonSafe(response);
+        if (response.status === 409) {
+            console.warn('Round robin score conflict; refreshing view.');
             renderTournamentView(tournamentId, { force: true, preserveScroll: true });
+            return;
         }
+        if (!response.ok) {
+            console.error('Score update error:', payload || response.statusText);
+            return;
+        }
+        setRoundRobinVersion(tournamentId, matchId, payload && payload.version);
+        renderTournamentView(tournamentId, { force: true, preserveScroll: true });
     } catch (error) {
         console.error('Score update error:', error);
     }

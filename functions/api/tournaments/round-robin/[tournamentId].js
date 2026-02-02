@@ -28,6 +28,7 @@ async function listMatches(env, tournamentId) {
                 m.team2_id,
                 s.score1,
                 s.score2,
+                COALESCE(s.version, 0) AS version,
                 t1names.names AS team1_name,
                 t2names.names AS team2_name
          FROM round_robin_matches m
@@ -49,6 +50,12 @@ async function listMatches(env, tournamentId) {
     ).bind(tournamentId).all();
 
     return result.results || [];
+}
+
+async function getCurrentScore(env, matchId) {
+    return await env.DB.prepare(
+        'SELECT score1, score2, version FROM round_robin_scores WHERE match_id = ?'
+    ).bind(matchId).first();
 }
 
 async function listTeams(env, tournamentId) {
@@ -116,11 +123,11 @@ export async function onRequestPost({ request, env, params }) {
         return jsonResponse({ error: 'Invalid JSON body' }, 400);
     }
 
-    const { matchId, score1, score2 } = body;
+    const { matchId, score1, score2, expectedVersion } = body;
     const score1Valid = score1 === null || Number.isInteger(score1);
     const score2Valid = score2 === null || Number.isInteger(score2);
-    if (!matchId || !score1Valid || !score2Valid) {
-        return jsonResponse({ error: 'matchId with score1/score2 required' }, 400);
+    if (!matchId || !score1Valid || !score2Valid || !Number.isInteger(expectedVersion) || expectedVersion < 0) {
+        return jsonResponse({ error: 'matchId with score1/score2 and expectedVersion required' }, 400);
     }
 
     const requester = await getUserById(env, auth.userId);
@@ -139,20 +146,68 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     if (score1 === null && score2 === null) {
-        await env.DB.prepare(
-            'DELETE FROM round_robin_scores WHERE match_id = ?'
-        ).bind(matchId).run();
-        return jsonResponse({ success: true });
+        let deleteResult;
+        if (expectedVersion === 0) {
+            deleteResult = await env.DB.prepare(
+                'DELETE FROM round_robin_scores WHERE match_id = ? AND version = 0'
+            ).bind(matchId).run();
+            const existing = await getCurrentScore(env, matchId);
+            if (!existing) {
+                return jsonResponse({ success: true, version: 0 });
+            }
+            if (deleteResult.meta && deleteResult.meta.changes === 1) {
+                return jsonResponse({ success: true, version: 0 });
+            }
+            return jsonResponse({
+                error: 'Score was updated by another user',
+                conflict: true,
+                current: existing
+            }, 409);
+        }
+
+        deleteResult = await env.DB.prepare(
+            'DELETE FROM round_robin_scores WHERE match_id = ? AND version = ?'
+        ).bind(matchId, expectedVersion).run();
+        if (deleteResult.meta && deleteResult.meta.changes === 1) {
+            return jsonResponse({ success: true, version: 0 });
+        }
+        const existing = await getCurrentScore(env, matchId);
+        return jsonResponse({
+            error: 'Score was updated by another user',
+            conflict: true,
+            current: existing || null
+        }, 409);
     }
 
-    await env.DB.prepare(
-        `INSERT INTO round_robin_scores (match_id, score1, score2)
-         VALUES (?, ?, ?)
-         ON CONFLICT(match_id) DO UPDATE SET
-            score1 = excluded.score1,
-            score2 = excluded.score2,
-            updated_at = CURRENT_TIMESTAMP`
-    ).bind(matchId, score1, score2).run();
+    const nextVersion = expectedVersion + 1;
+    let writeResult;
+    if (expectedVersion === 0) {
+        writeResult = await env.DB.prepare(
+            `INSERT INTO round_robin_scores (match_id, score1, score2, version)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(match_id) DO UPDATE SET
+                score1 = excluded.score1,
+                score2 = excluded.score2,
+                version = round_robin_scores.version + 1,
+                updated_at = CURRENT_TIMESTAMP
+             WHERE round_robin_scores.version = 0`
+        ).bind(matchId, score1, score2, nextVersion).run();
+    } else {
+        writeResult = await env.DB.prepare(
+            `UPDATE round_robin_scores
+             SET score1 = ?, score2 = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+             WHERE match_id = ? AND version = ?`
+        ).bind(score1, score2, matchId, expectedVersion).run();
+    }
 
-    return jsonResponse({ success: true });
+    if (!(writeResult.meta && writeResult.meta.changes === 1)) {
+        const existing = await getCurrentScore(env, matchId);
+        return jsonResponse({
+            error: 'Score was updated by another user',
+            conflict: true,
+            current: existing || null
+        }, 409);
+    }
+
+    return jsonResponse({ success: true, version: nextVersion });
 }

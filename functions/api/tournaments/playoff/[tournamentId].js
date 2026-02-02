@@ -43,13 +43,28 @@ async function listScores(env, tournamentId) {
                 game2_score1,
                 game2_score2,
                 game3_score1,
-                game3_score2
+                game3_score2,
+                version
          FROM playoff_scores
          WHERE tournament_id = ?
          ORDER BY round_number ASC, match_number ASC`
     ).bind(tournamentId).all();
 
     return result.results || [];
+}
+
+async function getCurrentScore(env, tournamentId, roundNumber, matchNumber) {
+    return await env.DB.prepare(
+        `SELECT game1_score1,
+                game1_score2,
+                game2_score1,
+                game2_score2,
+                game3_score1,
+                game3_score2,
+                version
+         FROM playoff_scores
+         WHERE tournament_id = ? AND round_number = ? AND match_number = ?`
+    ).bind(tournamentId, roundNumber, matchNumber).first();
 }
 
 async function userTeams(env, tournamentId, userId) {
@@ -217,9 +232,9 @@ export async function onRequestPost({ request, env, params }) {
         return jsonResponse({ error: 'Invalid JSON body' }, 400);
     }
 
-    const { roundNumber, matchNumber, games } = body;
-    if (!Number.isInteger(roundNumber) || !Number.isInteger(matchNumber) || !games) {
-        return jsonResponse({ error: 'roundNumber, matchNumber, games required' }, 400);
+    const { roundNumber, matchNumber, games, expectedVersion } = body;
+    if (!Number.isInteger(roundNumber) || !Number.isInteger(matchNumber) || !games || !Number.isInteger(expectedVersion) || expectedVersion < 0) {
+        return jsonResponse({ error: 'roundNumber, matchNumber, games, expectedVersion required' }, 400);
     }
 
     const seedOrder = playoffState.seed_order ? JSON.parse(playoffState.seed_order) : [];
@@ -271,10 +286,34 @@ export async function onRequestPost({ request, env, params }) {
     ];
     const hasAnyScore = allScores.some(score => Number.isInteger(score));
     if (!hasAnyScore) {
-        await env.DB.prepare(
-            'DELETE FROM playoff_scores WHERE tournament_id = ? AND round_number = ? AND match_number = ?'
-        ).bind(tournamentId, roundNumber, matchNumber).run();
-        return jsonResponse({ success: true });
+        let deleteResult;
+        if (expectedVersion === 0) {
+            deleteResult = await env.DB.prepare(
+                'DELETE FROM playoff_scores WHERE tournament_id = ? AND round_number = ? AND match_number = ? AND version = 0'
+            ).bind(tournamentId, roundNumber, matchNumber).run();
+            const existing = await getCurrentScore(env, tournamentId, roundNumber, matchNumber);
+            if (!existing || (deleteResult.meta && deleteResult.meta.changes === 1)) {
+                return jsonResponse({ success: true, version: 0 });
+            }
+            return jsonResponse({
+                error: 'Score was updated by another user',
+                conflict: true,
+                current: existing
+            }, 409);
+        }
+
+        deleteResult = await env.DB.prepare(
+            'DELETE FROM playoff_scores WHERE tournament_id = ? AND round_number = ? AND match_number = ? AND version = ?'
+        ).bind(tournamentId, roundNumber, matchNumber, expectedVersion).run();
+        if (deleteResult.meta && deleteResult.meta.changes === 1) {
+            return jsonResponse({ success: true, version: 0 });
+        }
+        const existing = await getCurrentScore(env, tournamentId, roundNumber, matchNumber);
+        return jsonResponse({
+            error: 'Score was updated by another user',
+            conflict: true,
+            current: existing || null
+        }, 409);
     }
 
     if (!Number.isInteger(game1Score1) || !Number.isInteger(game1Score2)) {
@@ -286,29 +325,69 @@ export async function onRequestPost({ request, env, params }) {
         }
     }
 
-    await env.DB.prepare(
-        `INSERT INTO playoff_scores
-            (tournament_id, round_number, match_number, game1_score1, game1_score2, game2_score1, game2_score2, game3_score1, game3_score2)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(tournament_id, round_number, match_number) DO UPDATE SET
-            game1_score1 = excluded.game1_score1,
-            game1_score2 = excluded.game1_score2,
-            game2_score1 = excluded.game2_score1,
-            game2_score2 = excluded.game2_score2,
-            game3_score1 = excluded.game3_score1,
-            game3_score2 = excluded.game3_score2,
-            updated_at = CURRENT_TIMESTAMP`
-    ).bind(
-        tournamentId,
-        roundNumber,
-        matchNumber,
-        game1Score1,
-        game1Score2,
-        (bestOfThree || bestOfThreeBronze) ? game2Score1 : null,
-        (bestOfThree || bestOfThreeBronze) ? game2Score2 : null,
-        (bestOfThree || bestOfThreeBronze) ? game3Score1 : null,
-        (bestOfThree || bestOfThreeBronze) ? game3Score2 : null
-    ).run();
+    const nextVersion = expectedVersion + 1;
+    let writeResult;
+    if (expectedVersion === 0) {
+        writeResult = await env.DB.prepare(
+            `INSERT INTO playoff_scores
+                (tournament_id, round_number, match_number, game1_score1, game1_score2, game2_score1, game2_score2, game3_score1, game3_score2, version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(tournament_id, round_number, match_number) DO UPDATE SET
+                game1_score1 = excluded.game1_score1,
+                game1_score2 = excluded.game1_score2,
+                game2_score1 = excluded.game2_score1,
+                game2_score2 = excluded.game2_score2,
+                game3_score1 = excluded.game3_score1,
+                game3_score2 = excluded.game3_score2,
+                version = playoff_scores.version + 1,
+                updated_at = CURRENT_TIMESTAMP
+             WHERE playoff_scores.version = 0`
+        ).bind(
+            tournamentId,
+            roundNumber,
+            matchNumber,
+            game1Score1,
+            game1Score2,
+            (bestOfThree || bestOfThreeBronze) ? game2Score1 : null,
+            (bestOfThree || bestOfThreeBronze) ? game2Score2 : null,
+            (bestOfThree || bestOfThreeBronze) ? game3Score1 : null,
+            (bestOfThree || bestOfThreeBronze) ? game3Score2 : null,
+            nextVersion
+        ).run();
+    } else {
+        writeResult = await env.DB.prepare(
+            `UPDATE playoff_scores
+             SET game1_score1 = ?,
+                 game1_score2 = ?,
+                 game2_score1 = ?,
+                 game2_score2 = ?,
+                 game3_score1 = ?,
+                 game3_score2 = ?,
+                 version = version + 1,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE tournament_id = ? AND round_number = ? AND match_number = ? AND version = ?`
+        ).bind(
+            game1Score1,
+            game1Score2,
+            (bestOfThree || bestOfThreeBronze) ? game2Score1 : null,
+            (bestOfThree || bestOfThreeBronze) ? game2Score2 : null,
+            (bestOfThree || bestOfThreeBronze) ? game3Score1 : null,
+            (bestOfThree || bestOfThreeBronze) ? game3Score2 : null,
+            tournamentId,
+            roundNumber,
+            matchNumber,
+            expectedVersion
+        ).run();
+    }
 
-    return jsonResponse({ success: true });
+    if (!(writeResult.meta && writeResult.meta.changes === 1)) {
+        const existing = await getCurrentScore(env, tournamentId, roundNumber, matchNumber);
+        return jsonResponse({
+            error: 'Score was updated by another user',
+            conflict: true,
+            current: existing || null
+        }, 409);
+    }
+
+    return jsonResponse({ success: true, version: nextVersion });
 }

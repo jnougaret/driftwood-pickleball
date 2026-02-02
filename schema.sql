@@ -125,6 +125,7 @@ CREATE TABLE playoff_scores (
   game2_score2 INTEGER,
   game3_score1 INTEGER,
   game3_score2 INTEGER,
+  version INTEGER NOT NULL DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tournament_id, round_number, match_number),
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
@@ -159,6 +160,7 @@ CREATE TABLE round_robin_scores (
   match_id TEXT PRIMARY KEY,
   score1 INTEGER,
   score2 INTEGER,
+  version INTEGER NOT NULL DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (match_id) REFERENCES round_robin_matches(id) ON DELETE CASCADE
 );
