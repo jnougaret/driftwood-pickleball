@@ -1844,6 +1844,7 @@ async function renderRegistrationList(tournamentId) {
             registrationHeader.classList.remove('hidden');
         }
         ensureAdminSettings(tournamentId);
+        await loadAdminSettings(tournamentId);
     }
 
     if (actionButton) {
