@@ -3,6 +3,7 @@
 
 let clerkInstance = null;
 let currentUser = null;
+let signInInProgress = false;
 
 let clerkReadyResolve;
 let clerkReadyReject;
@@ -192,7 +193,9 @@ function updateAuthButtons(isAuthenticated) {
 
 // Sign in function - opens Clerk sign-in modal
 async function signIn() {
+    if (signInInProgress) return;
     try {
+        signInInProgress = true;
         sessionStorage.setItem('redirectToProfileOnSignIn', '1');
         sessionStorage.setItem('signInReturnUrl', window.location.href);
         // Use same-tab redirect flow to avoid extra tabs on mobile browsers.
@@ -207,6 +210,9 @@ async function signIn() {
         });
     } catch (error) {
         console.error('Error opening sign in:', error);
+    } finally {
+        // If redirect navigation did not happen, allow another attempt.
+        signInInProgress = false;
     }
 }
 
