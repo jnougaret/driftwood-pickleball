@@ -19,6 +19,12 @@ async function getPlayoffState(env, tournamentId) {
     ).bind(tournamentId).first();
 }
 
+async function getTournamentMeta(env, tournamentId) {
+    return await env.DB.prepare(
+        'SELECT status FROM tournaments WHERE id = ?'
+    ).bind(tournamentId).first();
+}
+
 async function listTeams(env, tournamentId) {
     const result = await env.DB.prepare(
         `SELECT t.id AS team_id,
@@ -191,19 +197,46 @@ export async function onRequestGet({ env, params }) {
     }
 
     const playoffState = await getPlayoffState(env, tournamentId);
-    if (!playoffState || playoffState.status !== 'playoff') {
+    if (!playoffState) {
         return jsonResponse({ status: 'none' });
     }
 
+    const tournamentMeta = await getTournamentMeta(env, tournamentId);
     const teams = await listTeams(env, tournamentId);
     const scores = await listScores(env, tournamentId);
+    const seedOrder = playoffState.seed_order ? JSON.parse(playoffState.seed_order) : [];
+    const bracketSize = playoffState.bracket_size || 2;
+    const bestOfThree = playoffState.best_of_three === 1;
+    const bestOfThreeBronze = playoffState.bronze_best_of_three === 1;
+    const rounds = computeRounds(seedOrder, bracketSize, scores, bestOfThree);
+    const totalRounds = Math.log2(bracketSize);
+    const finalMatch = (rounds[totalRounds - 1] || []).find(match => match.matchNumber === 1) || null;
+    const goldWinner = finalMatch
+        ? matchWinner(finalMatch, finalMatch.score, true, bestOfThree, totalRounds)
+        : null;
+    let bronzeWinner = null;
+    if (bracketSize >= 4) {
+        const bronzeTeams = computeBronzeTeams(rounds, totalRounds, bestOfThree);
+        const scoreMap = buildScoreMap(scores);
+        const bronzeScore = scoreMap.get(`${totalRounds}-2`) || null;
+        bronzeWinner = matchWinner(
+            { team1Id: bronzeTeams.team1Id, team2Id: bronzeTeams.team2Id },
+            bronzeScore,
+            true,
+            bestOfThreeBronze,
+            totalRounds
+        );
+    }
+
     return jsonResponse({
-        status: 'playoff',
-        seedOrder: playoffState.seed_order ? JSON.parse(playoffState.seed_order) : [],
+        status: playoffState.status || 'playoff',
+        tournamentStatus: tournamentMeta?.status || 'upcoming',
+        seedOrder,
         playoffTeams: playoffState.playoff_teams,
-        bestOfThree: playoffState.best_of_three === 1,
-        bestOfThreeBronze: playoffState.bronze_best_of_three === 1,
-        bracketSize: playoffState.bracket_size,
+        bestOfThree,
+        bestOfThreeBronze,
+        bracketSize,
+        isComplete: Boolean(goldWinner) && (bracketSize < 4 || Boolean(bronzeWinner)),
         scores,
         teams
     });

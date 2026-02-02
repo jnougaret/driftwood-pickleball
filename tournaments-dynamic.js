@@ -331,12 +331,12 @@ function createTournamentCard(tournament, type) {
             <!-- Expandable Results -->
             <div id="${tournament.id}-results" class="hidden border-t-2 border-gray-200">
                 <!-- Winner Photo -->
-                <div class="p-6 pb-0 bg-gray-50">
+                <div id="${tournament.id}-photo-wrap" class="p-6 pb-0 bg-gray-50 ${tournament.photoUrl ? '' : 'hidden'}">
                     <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
                     <div class="text-center mb-0">
                         <img 
                             id="${tournament.id}-photo" 
-                            src="${tournament.photoUrl}" 
+                            src="${tournament.photoUrl || ''}" 
                             alt="Tournament Champions" 
                             class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
                             style="max-height: 400px; display: block;"
@@ -1151,6 +1151,33 @@ async function resetPlayoff(tournamentId) {
     }
 }
 
+async function archiveTournamentResults(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/archive/${tournamentId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const payload = await readJsonSafe(response);
+        if (!response.ok) {
+            alert((payload && payload.error) || 'Unable to archive results.');
+            return;
+        }
+        await loadTournaments();
+        renderUpcomingTournaments();
+        renderResults();
+        refreshAdminDetailEditors();
+        stopTournamentPolling(tournamentId);
+    } catch (error) {
+        console.error('Archive results error:', error);
+        alert('Unable to archive results.');
+    }
+}
+
 async function fetchRoundRobin(tournamentId) {
     const response = await fetch(`/api/tournaments/round-robin/${tournamentId}`);
     if (!response.ok) {
@@ -1825,6 +1852,17 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
 
         }
 
+        const archiveButton = isFinal && isAdmin && playoff.isComplete
+            ? `
+                <button
+                    class="mt-4 w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                    onclick="archiveTournamentResults('${tournamentId}')"
+                >
+                    Archive Results
+                </button>
+            `
+            : '';
+
         return `
             <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
                 <h5 class="text-lg font-semibold ${theme.titleClass} mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
@@ -1832,6 +1870,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 <div class="space-y-4">${matchesHtml || `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>`}</div>
                 ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mt-4 mb-2">Bronze Match</div>` : ''}
                 ${bronzeHtml}
+                ${archiveButton}
             </div>
         `;
     }).join('');
@@ -2463,25 +2502,141 @@ function toggleResults(tournamentId) {
 
 async function loadTournamentBracket(tournamentId) {
     const tournament = getResultsTournaments().find(t => t.id === tournamentId);
-    if (!tournament || !tournament.csvUrl) return;
-    
-    try {
-        const response = await fetch(tournament.csvUrl);
-        const csvText = await response.text();
-        const data = parseCSV(csvText);
-        
-        if (data.matches.length === 0) {
-            document.getElementById(`${tournamentId}-bracket`).innerHTML = 
-                '<p class="text-yellow-600">No match data found in spreadsheet</p>';
+    if (!tournament) return;
+
+    const photoWrap = document.getElementById(`${tournamentId}-photo-wrap`);
+    if (photoWrap && !tournament.photoUrl) {
+        photoWrap.classList.add('hidden');
+    }
+
+    if (tournament.csvUrl) {
+        try {
+            const response = await fetch(tournament.csvUrl);
+            const csvText = await response.text();
+            const data = parseCSV(csvText);
+
+            if (data.matches.length === 0) {
+                document.getElementById(`${tournamentId}-bracket`).innerHTML =
+                    '<p class="text-yellow-600">No match data found.</p>';
+                return;
+            }
+
+            renderBracket(tournamentId, data);
+            return;
+        } catch (error) {
+            console.error('Error loading bracket:', error);
+            document.getElementById(`${tournamentId}-bracket`).innerHTML =
+                '<p class="text-red-500">Error loading bracket data</p>';
             return;
         }
-        
-        renderBracket(tournamentId, data);
-    } catch (error) {
-        console.error('Error loading bracket:', error);
-        document.getElementById(`${tournamentId}-bracket`).innerHTML = 
-            '<p class="text-red-500">Error loading bracket data</p>';
     }
+
+    try {
+        const response = await fetch(`/api/tournaments/playoff/${tournamentId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load playoff data');
+        }
+        const data = await response.json();
+        if (data.status !== 'playoff') {
+            document.getElementById(`${tournamentId}-bracket`).innerHTML =
+                '<p class="text-yellow-600">No playoff bracket data found.</p>';
+            return;
+        }
+        renderPlayoffResultsBracket(tournamentId, data);
+    } catch (error) {
+        console.error('Error loading playoff results:', error);
+        document.getElementById(`${tournamentId}-bracket`).innerHTML =
+            '<p class="text-red-500">Error loading playoff results</p>';
+    }
+}
+
+function formatSingleGameScore(score1, score2) {
+    if (!Number.isInteger(score1) || !Number.isInteger(score2)) return 'TBD';
+    return `${score1}-${score2}`;
+}
+
+function formatBestOfThreeScore(score, teamSlot) {
+    const list = [];
+    const games = [
+        [score.game1_score1, score.game1_score2],
+        [score.game2_score1, score.game2_score2],
+        [score.game3_score1, score.game3_score2]
+    ];
+    games.forEach(([s1, s2]) => {
+        if (!Number.isInteger(s1) || !Number.isInteger(s2)) return;
+        list.push(teamSlot === 1 ? `${s1}-${s2}` : `${s2}-${s1}`);
+    });
+    return list.length ? list.join(', ') : 'TBD';
+}
+
+function playoffScoreLabel(score, teamSlot, bestOfThreeEnabled) {
+    if (!score) return 'TBD';
+    if (bestOfThreeEnabled) {
+        return formatBestOfThreeScore(score, teamSlot);
+    }
+    if (teamSlot === 1) return formatSingleGameScore(score.game1_score1, score.game1_score2);
+    return formatSingleGameScore(score.game1_score2, score.game1_score1);
+}
+
+function renderPlayoffResultsBracket(tournamentId, playoff) {
+    const bracketDiv = document.getElementById(`${tournamentId}-bracket`);
+    if (!bracketDiv) return;
+
+    const seedOrder = playoff.seedOrder || [];
+    const scores = playoff.scores || [];
+    const bracketSize = playoff.bracketSize || 2;
+    const bestOfThree = playoff.bestOfThree === true;
+    const bestOfThreeBronze = playoff.bestOfThreeBronze === true;
+    const teamsMap = new Map((playoff.teams || []).map(team => [team.team_id, team.team_name || 'Team']));
+    const rounds = computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree);
+    const totalRounds = Math.log2(bracketSize);
+    const scoreMap = buildPlayoffScoreMap(scores);
+
+    const columns = rounds.map((roundMatches, roundIndex) => {
+        const roundNumber = roundIndex + 1;
+        const isFinal = roundNumber === totalRounds;
+        const matchesHtml = roundMatches.map(match => {
+            const team1 = teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD');
+            const team2 = teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD');
+            const score = match.score || null;
+            return `
+                <div class="bracket-match">
+                    <div class="bracket-team"><span>${team1}</span><span>${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span></div>
+                    <div class="bracket-team"><span>${team2}</span><span>${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span></div>
+                </div>
+            `;
+        }).join('');
+
+        let bronzeHtml = '';
+        if (isFinal && bracketSize >= 4) {
+            const semiRound = rounds[totalRounds - 2] || [];
+            const semiMatches = semiRound.map(match => ({
+                ...match,
+                score: scoreMap.get(`${totalRounds - 1}-${match.matchNumber}`) || match.score || null
+            }));
+            const losers = semiMatches.map(match => playoffMatchLoser(match, match.score, false, false, totalRounds - 1));
+            const bronzeScore = scoreMap.get(`${totalRounds}-2`) || null;
+            const bronzeTeam1 = teamsMap.get(losers[0]) || 'TBD';
+            const bronzeTeam2 = teamsMap.get(losers[1]) || 'TBD';
+            bronzeHtml = `
+                <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">BRONZE MATCH</div>
+                <div class="bracket-match bronze">
+                    <div class="bracket-team"><span>${bronzeTeam1}</span><span>${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span></div>
+                    <div class="bracket-team"><span>${bronzeTeam2}</span><span>${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span></div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="bracket-round">
+                <h5 class="text-lg font-semibold text-ocean-blue mb-3 text-center">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
+                ${matchesHtml}
+                ${bronzeHtml}
+            </div>
+        `;
+    }).join('');
+
+    bracketDiv.innerHTML = `<div class="flex gap-4 overflow-x-auto pb-4" style="align-items:flex-start;">${columns}</div>`;
 }
 
 // ========================================
