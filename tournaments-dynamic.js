@@ -888,10 +888,14 @@ async function renderTournamentView(tournamentId, options = {}) {
     if (!view || !roundsContainer) return;
     if (!options.force) {
         const activeEl = document.activeElement;
-        if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
-            if (activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
-                return;
-            }
+        if (activeEl && activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
+            const tag = activeEl.tagName ? activeEl.tagName.toLowerCase() : '';
+            const isInteractive = activeEl.classList.contains('score-input')
+                || tag === 'button'
+                || tag === 'select'
+                || tag === 'textarea'
+                || (tag === 'input');
+            if (isInteractive) return;
         }
     }
 
@@ -1192,8 +1196,14 @@ function startTournamentPolling(tournamentId) {
     const interval = setInterval(() => {
         if (document.hidden) return;
         const activeEl = document.activeElement;
-        if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
-            return;
+        if (activeEl && activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
+            const tag = activeEl.tagName ? activeEl.tagName.toLowerCase() : '';
+            const isInteractive = activeEl.classList.contains('score-input')
+                || tag === 'button'
+                || tag === 'select'
+                || tag === 'textarea'
+                || (tag === 'input');
+            if (isInteractive) return;
         }
         renderTournamentView(tournamentId);
     }, TOURNAMENT_POLL_INTERVAL_MS);
