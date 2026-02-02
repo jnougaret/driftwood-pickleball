@@ -1679,7 +1679,7 @@ async function renderRegistrationList(tournamentId) {
             actionButton.disabled = false;
         }
         if (actionButtonText) {
-            actionButtonText.textContent = playoff && playoff.status === 'playoff' ? 'View Playoff' : 'View Tournament';
+            actionButtonText.textContent = 'View Tournament';
         }
         if (registrationActions) {
             registrationActions.classList.add('hidden');
@@ -1781,8 +1781,7 @@ function toggleTournamentView(tournamentId) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const list = document.getElementById(`${tournamentId}-registration-list`);
     const buttonText = document.getElementById(`${tournamentId}-registration-button-text`);
-    const title = document.getElementById(`${tournamentId}-tournament-title`);
-    const modeLabel = title && title.textContent === 'Playoffs' ? 'Playoff' : 'Tournament';
+    const modeLabel = 'Tournament';
     if (!view || !list || !buttonText) return;
     if (view.classList.contains('hidden')) {
         view.classList.remove('hidden');
@@ -1806,12 +1805,7 @@ async function refreshTournamentButtons() {
             if (settings.status === 'tournament') {
                 const buttonText = document.getElementById(`${tournament.id}-registration-button-text`);
                 if (buttonText) {
-                    try {
-                        const playoff = await fetchPlayoffState(tournament.id);
-                        buttonText.textContent = playoff && playoff.status === 'playoff' ? 'View Playoff' : 'View Tournament';
-                    } catch (error) {
-                        buttonText.textContent = 'View Tournament';
-                    }
+                    buttonText.textContent = 'View Tournament';
                 }
             }
         } catch (error) {
