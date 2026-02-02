@@ -1713,20 +1713,20 @@ async function renderRegistrationList(tournamentId) {
                 const rating = formatRating(player, doubles);
                 const display = rating !== '-' ? `${player.name} (${rating})` : player.name;
                 const removeButton = isAdmin
-                    ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 ml-3">Remove</button>`
+                    ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 whitespace-nowrap ml-4">Remove</button>`
                     : '';
                 return `<div class="text-sm text-gray-700 leading-5 flex items-center justify-between gap-3"><span class="flex-1">${display}</span>${removeButton}</div>`;
             }).join('');
 
             const needsPartner = doubles && players.length === 1;
         const joinButton = needsPartner
-            ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal">Join</button>`
+            ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal whitespace-nowrap">Join</button>`
             : '';
 
             return `
-                <div class="flex items-start justify-between py-3 border-t border-gray-300 first:border-t-0">
+                <div class="flex items-center justify-between py-3 border-t border-gray-300 first:border-t-0">
                     <div class="flex-1 space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
-                    ${joinButton}
+                    ${joinButton ? `<div class="shrink-0 pl-4 ml-3 border-l border-gray-200">${joinButton}</div>` : ''}
                 </div>
             `;
         }).join('');
