@@ -96,8 +96,103 @@ function mapTournamentRow(row) {
     };
 }
 
+async function ensureSeedData(env) {
+    const existing = await env.DB.prepare(
+        'SELECT COUNT(*) AS count FROM tournaments'
+    ).first();
+
+    if ((existing?.count || 0) > 0) {
+        return;
+    }
+
+    await env.DB.batch([
+        env.DB.prepare(
+            `INSERT INTO tournaments (
+                id, title, start_time, start_date, start_time_et, timezone, location,
+                format, format_type, skill_level, skill_level_cap, entry_fee, entry_fee_amount,
+                prize_split, theme, status, display_order, live_start, live_end
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            'feb28-tournament',
+            'Saturday Moneyball',
+            '2:00 PM - Date TBD',
+            null,
+            '14:00',
+            'America/New_York',
+            'The Picklr Westbrook',
+            'Coed Doubles',
+            'coed_doubles',
+            'DUPR 9.25 and below',
+            9.25,
+            '$15 per player',
+            15,
+            '50% - 30% - 20%',
+            'blue',
+            'upcoming',
+            10,
+            '2026-02-07T14:00:00.000Z',
+            '2026-02-07T18:00:00.000Z'
+        ),
+        env.DB.prepare(
+            `INSERT INTO tournaments (
+                id, title, start_time, start_date, start_time_et, timezone, location,
+                format, format_type, skill_level, skill_level_cap, entry_fee, entry_fee_amount,
+                prize_split, theme, status, display_order, csv_url, photo_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            'jan24',
+            'Saturday January 24 Moneyball',
+            null,
+            '2026-01-24',
+            '14:00',
+            'America/New_York',
+            'The Picklr Westbrook',
+            'Coed Doubles',
+            'coed_doubles',
+            'DUPR 9.25 and below',
+            9.25,
+            '$15 per player',
+            15,
+            '50% - 30% - 20%',
+            'gold',
+            'completed',
+            20,
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=1866706696&single=true&output=csv',
+            'photos/winners-jan24.jpg'
+        ),
+        env.DB.prepare(
+            `INSERT INTO tournaments (
+                id, title, start_time, start_date, start_time_et, timezone, location,
+                format, format_type, skill_level, skill_level_cap, entry_fee, entry_fee_amount,
+                prize_split, theme, status, display_order, csv_url, photo_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            'jan10',
+            'Saturday January 10 Moneyball',
+            null,
+            '2026-01-10',
+            '14:00',
+            'America/New_York',
+            'The Picklr Westbrook',
+            'Coed Doubles',
+            'coed_doubles',
+            'DUPR 9.50 and below',
+            9.5,
+            '$15 per player',
+            15,
+            '50% - 30% - 20%',
+            'blue',
+            'completed',
+            30,
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv',
+            'photos/winners-jan10.jpeg'
+        )
+    ]);
+}
+
 export async function onRequestGet({ env }) {
     try {
+        await ensureSeedData(env);
         let result;
         try {
             result = await env.DB.prepare(
