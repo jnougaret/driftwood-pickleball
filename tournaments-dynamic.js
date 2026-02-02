@@ -1713,7 +1713,7 @@ async function renderRegistrationList(tournamentId) {
                 const rating = formatRating(player, doubles);
                 const display = rating !== '-' ? `${player.name} (${rating})` : player.name;
                 const removeButton = isAdmin
-                    ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 whitespace-nowrap ml-4">Remove</button>`
+                    ? `<button onclick="removePlayer('${tournamentId}', '${player.id}')" class="text-xs text-red-600 hover:text-red-800 whitespace-nowrap ml-2">Remove</button>`
                     : '';
                 return `<div class="text-sm text-gray-700 leading-5 flex items-center justify-between gap-3"><span class="flex-1">${display}</span>${removeButton}</div>`;
             }).join('');
@@ -1726,7 +1726,7 @@ async function renderRegistrationList(tournamentId) {
             return `
                 <div class="flex items-center justify-between py-3 border-t border-gray-300 first:border-t-0">
                     <div class="flex-1 space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
-                    ${joinButton ? `<div class="shrink-0 pl-4 ml-3">${joinButton}</div>` : ''}
+                    ${joinButton ? `<div class="shrink-0 pl-2">${joinButton}</div>` : ''}
                 </div>
             `;
         }).join('');
