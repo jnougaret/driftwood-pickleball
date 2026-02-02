@@ -22,10 +22,16 @@ CREATE TABLE tournaments (
   id TEXT PRIMARY KEY,              -- From tournaments-config.js (e.g., 'feb28-tournament')
   title TEXT NOT NULL,              -- Tournament name
   start_time TEXT,                  -- Start time display text
+  start_date TEXT,                  -- YYYY-MM-DD (ET)
+  start_time_et TEXT,               -- HH:MM 24-hour (ET)
+  timezone TEXT DEFAULT 'America/New_York',
   location TEXT,                    -- Venue name
   format TEXT,                      -- Tournament format (e.g., "Coed Doubles")
+  format_type TEXT,                 -- coed_doubles | mixed_doubles
   skill_level TEXT,                 -- Skill restrictions (e.g., "DUPR 9.25 or below")
+  skill_level_cap REAL,             -- numeric cap used to render skill_level
   entry_fee TEXT,                   -- Entry fee text (e.g., "$15 per player")
+  entry_fee_amount REAL,            -- numeric fee per player
   prize_split TEXT,                 -- Prize distribution (e.g., "50% - 30% - 20%")
   theme TEXT,                       -- Card theme: 'blue' or 'gold'
   max_registrations INTEGER,        -- Registration cap (NULL = unlimited)
@@ -35,6 +41,9 @@ CREATE TABLE tournaments (
   live_end DATETIME,                -- When tournament ends
   status TEXT DEFAULT 'upcoming',   -- Status: 'upcoming', 'live', 'completed', 'cancelled'
   swish_url TEXT,                   -- Backup Swish registration URL
+  csv_url TEXT,                     -- Published bracket CSV (results cards)
+  photo_url TEXT,                   -- Winners photo path (results cards)
+  display_order INTEGER DEFAULT 0,  -- Sort order within a section
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,88 @@
 // ========================================
 // DYNAMIC TOURNAMENT RENDERING
-// This script automatically generates tournament cards from tournaments-config.js
+// This script renders tournaments from the DB-backed /api/tournaments endpoint
 // ========================================
+
+let tournamentStore = {
+    upcoming: [],
+    results: []
+};
+
+async function loadTournaments() {
+    const response = await fetch('/api/tournaments');
+    if (!response.ok) {
+        throw new Error('Failed to load tournaments');
+    }
+    const data = await response.json();
+    tournamentStore = {
+        upcoming: Array.isArray(data.upcoming) ? data.upcoming : [],
+        results: Array.isArray(data.results) ? data.results : []
+    };
+}
+
+function getUpcomingTournaments() {
+    return tournamentStore.upcoming || [];
+}
+
+function getResultsTournaments() {
+    return tournamentStore.results || [];
+}
+
+function findUpcomingTournament(tournamentId) {
+    return getUpcomingTournaments().find(tournament => tournament.id === tournamentId) || null;
+}
+
+function formatTimeLabel(timeEt) {
+    if (!timeEt || !/^\d{2}:\d{2}$/.test(timeEt)) return null;
+    const [hoursRaw, minutesRaw] = timeEt.split(':');
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const h12 = (hours % 12) || 12;
+    return `${h12}:${String(minutes).padStart(2, '0')} ${suffix}`;
+}
+
+function formatDateLabel(startDate) {
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return null;
+    const [yearRaw, monthRaw, dayRaw] = startDate.split('-');
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+    const dt = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(dt.getTime())) return null;
+    const monthLabel = dt.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    return `${monthLabel} ${day}`;
+}
+
+function formatStartLine(startDate, startTimeEt, fallback) {
+    const time = formatTimeLabel(startTimeEt);
+    const date = formatDateLabel(startDate);
+    if (time && date) return `${time} - ${date}`;
+    if (time && !date) return `${time} - Date TBD`;
+    return fallback || 'Date TBD';
+}
+
+function formatFormatType(formatType) {
+    return formatType === 'mixed_doubles' ? 'Mixed Doubles' : 'Coed Doubles';
+}
+
+function formatSkillText(skillCap) {
+    if (skillCap === null || skillCap === undefined || Number.isNaN(Number(skillCap))) {
+        return 'DUPR ??.?? and below';
+    }
+    return `DUPR ${Number(skillCap).toFixed(2)} and below`;
+}
+
+function formatEntryFeeText(entryFeeAmount) {
+    if (entryFeeAmount === null || entryFeeAmount === undefined || Number.isNaN(Number(entryFeeAmount))) {
+        return '$0 per player';
+    }
+    const amount = Number(entryFeeAmount);
+    const pretty = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+    return `$${pretty} per player`;
+}
 
 // ========================================
 // RENDER UPCOMING TOURNAMENTS
@@ -13,7 +94,13 @@ function renderUpcomingTournaments() {
     
     container.innerHTML = ''; // Clear existing content
     
-    TOURNAMENTS.upcoming.forEach(tournament => {
+    const tournaments = getUpcomingTournaments();
+    if (!tournaments.length) {
+        container.innerHTML = '<p class="text-sm text-gray-500">No upcoming tournaments yet.</p>';
+        return;
+    }
+
+    tournaments.forEach(tournament => {
         const card = createTournamentCard(tournament, 'upcoming');
         container.appendChild(card);
     });
@@ -29,7 +116,13 @@ function renderResults() {
     
     container.innerHTML = ''; // Clear existing content
     
-    TOURNAMENTS.results.forEach(tournament => {
+    const tournaments = getResultsTournaments();
+    if (!tournaments.length) {
+        container.innerHTML = '<p class="text-sm text-gray-500">No completed results yet.</p>';
+        return;
+    }
+
+    tournaments.forEach(tournament => {
         const card = createTournamentCard(tournament, 'results');
         container.appendChild(card);
     });
@@ -49,28 +142,76 @@ function createTournamentCard(tournament, type) {
         card.className = `tournament-card ${themeClass}`;
         card.innerHTML = `
             <div class="card-header">
-                <h3 class="text-2xl font-bold mb-2">${tournament.title}</h3>
-                <p class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
+                <h3 id="${tournament.id}-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
+                <p id="${tournament.id}-start-line" class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
             </div>
             <div class="card-body">
-                <div class="space-y-3 mb-6">
+                <div id="${tournament.id}-details-display" class="space-y-3 mb-6">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Format:</span>
-                        <span class="font-semibold">${tournament.format}</span>
+                        <span id="${tournament.id}-format-line" class="font-semibold">${tournament.format}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Skill Level:</span>
-                        <span class="font-semibold">${tournament.skillLevel}</span>
+                        <span id="${tournament.id}-skill-line" class="font-semibold">${tournament.skillLevel}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Entry Fee:</span>
-                        <span class="font-semibold text-ocean-blue">${tournament.entryFee}</span>
+                        <span id="${tournament.id}-fee-line" class="font-semibold text-ocean-blue">${tournament.entryFee}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Prize Split:</span>
                         <span class="font-semibold">${tournament.prizeSplit}</span>
                     </div>
                 </div>
+                <div id="${tournament.id}-details-editor" class="hidden border border-gray-200 rounded-lg bg-white p-4 space-y-3 mb-6">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Tournament title</label>
+                        <input id="${tournament.id}-edit-title" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.title}">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Date (ET)</label>
+                            <input id="${tournament.id}-edit-date" type="date" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.startDate || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Time (ET)</label>
+                            <input id="${tournament.id}-edit-time" type="time" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.startTimeEt || ''}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Location</label>
+                        <input id="${tournament.id}-edit-location" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.location || ''}">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Format</label>
+                            <select id="${tournament.id}-edit-format" class="w-full px-3 py-2 border border-gray-300 rounded">
+                                <option value="coed_doubles" ${tournament.formatType !== 'mixed_doubles' ? 'selected' : ''}>Coed Doubles</option>
+                                <option value="mixed_doubles" ${tournament.formatType === 'mixed_doubles' ? 'selected' : ''}>Mixed Doubles</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Skill cap</label>
+                            <input id="${tournament.id}-edit-skill" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" value="${Number.isFinite(tournament.skillLevelCap) ? tournament.skillLevelCap : ''}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Entry fee (per player)</label>
+                        <input id="${tournament.id}-edit-fee" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" value="${Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : ''}">
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                        <button onclick="saveTournamentDetails('${tournament.id}')" class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-ocean-teal transition">Save Details</button>
+                        <button onclick="toggleTournamentDetailsEditor('${tournament.id}', false)" class="bg-white border border-gray-300 text-ocean-blue px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition">Cancel</button>
+                    </div>
+                </div>
+                <button
+                    id="${tournament.id}-edit-details-button"
+                    onclick="toggleTournamentDetailsEditor('${tournament.id}')"
+                    class="hidden mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-ocean-blue hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+                >
+                    Edit Details
+                </button>
                 <button
                     onclick="toggleRegistration('${tournament.id}')"
                     class="tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
@@ -224,18 +365,23 @@ function createTournamentCard(tournament, type) {
 function checkTournamentStatus() {
     const now = new Date();
     
-    TOURNAMENTS.upcoming.forEach(tournament => {
+    getUpcomingTournaments().forEach(tournament => {
         const card = document.getElementById(tournament.id);
         if (!card) return;
         
         const liveLink = document.getElementById(`${tournament.id}-live-link`);
 
+        const liveStart = tournament.liveStart ? new Date(tournament.liveStart) : null;
+        const liveEnd = tournament.liveEnd ? new Date(tournament.liveEnd) : null;
+        const hasLiveWindow = liveStart instanceof Date && !Number.isNaN(liveStart.getTime())
+            && liveEnd instanceof Date && !Number.isNaN(liveEnd.getTime());
+
         // Check if tournament is live
-        if (now >= tournament.liveStart && now <= tournament.liveEnd) {
+        if (hasLiveWindow && now >= liveStart && now <= liveEnd) {
             if (liveLink) {
                 liveLink.classList.remove('hidden');
             }
-        } else if (now > tournament.liveEnd) {
+        } else if (hasLiveWindow && now > liveEnd) {
             // Tournament is over - hide the card
             card.style.display = 'none';
         } else {
@@ -244,6 +390,143 @@ function checkTournamentStatus() {
             }
         }
     });
+}
+
+function refreshAdminDetailEditors() {
+    const isAdmin = Boolean(window.authProfile && window.authProfile.isAdmin);
+    getUpcomingTournaments().forEach(tournament => {
+        const editButton = document.getElementById(`${tournament.id}-edit-details-button`);
+        if (!editButton) return;
+        if (isAdmin) {
+            editButton.classList.remove('hidden');
+        } else {
+            editButton.classList.add('hidden');
+            toggleTournamentDetailsEditor(tournament.id, false);
+        }
+    });
+}
+
+function updateTournamentInStore(updatedTournament) {
+    if (!updatedTournament || !updatedTournament.id) return;
+    tournamentStore.upcoming = getUpcomingTournaments().map(tournament => (
+        tournament.id === updatedTournament.id ? { ...tournament, ...updatedTournament } : tournament
+    ));
+}
+
+function updateTournamentCardDisplay(tournament) {
+    const titleEl = document.getElementById(`${tournament.id}-title`);
+    const startLineEl = document.getElementById(`${tournament.id}-start-line`);
+    const formatEl = document.getElementById(`${tournament.id}-format-line`);
+    const skillEl = document.getElementById(`${tournament.id}-skill-line`);
+    const feeEl = document.getElementById(`${tournament.id}-fee-line`);
+
+    if (titleEl) titleEl.textContent = tournament.title;
+    if (startLineEl) {
+        const startLine = formatStartLine(tournament.startDate, tournament.startTimeEt, tournament.startTime);
+        startLineEl.textContent = `${startLine} @ ${tournament.location}`;
+    }
+    if (formatEl) formatEl.textContent = formatFormatType(tournament.formatType);
+    if (skillEl) skillEl.textContent = formatSkillText(tournament.skillLevelCap);
+    if (feeEl) feeEl.textContent = formatEntryFeeText(tournament.entryFeeAmount);
+}
+
+function toggleTournamentDetailsEditor(tournamentId, forceOpen = null) {
+    const display = document.getElementById(`${tournamentId}-details-display`);
+    const editor = document.getElementById(`${tournamentId}-details-editor`);
+    const button = document.getElementById(`${tournamentId}-edit-details-button`);
+    const tournament = findUpcomingTournament(tournamentId);
+    if (!display || !editor || !button || !tournament) return;
+    if (!(window.authProfile && window.authProfile.isAdmin)) return;
+
+    const shouldOpen = forceOpen === null ? editor.classList.contains('hidden') : Boolean(forceOpen);
+    if (shouldOpen) {
+        const titleInput = document.getElementById(`${tournamentId}-edit-title`);
+        const dateInput = document.getElementById(`${tournamentId}-edit-date`);
+        const timeInput = document.getElementById(`${tournamentId}-edit-time`);
+        const locationInput = document.getElementById(`${tournamentId}-edit-location`);
+        const formatInput = document.getElementById(`${tournamentId}-edit-format`);
+        const skillInput = document.getElementById(`${tournamentId}-edit-skill`);
+        const feeInput = document.getElementById(`${tournamentId}-edit-fee`);
+        if (titleInput) titleInput.value = tournament.title || '';
+        if (dateInput) dateInput.value = tournament.startDate || '';
+        if (timeInput) timeInput.value = tournament.startTimeEt || '';
+        if (locationInput) locationInput.value = tournament.location || '';
+        if (formatInput) formatInput.value = tournament.formatType === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles';
+        if (skillInput) skillInput.value = Number.isFinite(tournament.skillLevelCap) ? tournament.skillLevelCap : '';
+        if (feeInput) feeInput.value = Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : '';
+        editor.classList.remove('hidden');
+        display.classList.add('hidden');
+        button.textContent = 'Close Editor';
+        return;
+    }
+
+    editor.classList.add('hidden');
+    display.classList.remove('hidden');
+    button.textContent = 'Edit Details';
+}
+
+async function saveTournamentDetails(tournamentId) {
+    if (!(window.authProfile && window.authProfile.isAdmin)) return;
+    const tournament = findUpcomingTournament(tournamentId);
+    if (!tournament) return;
+
+    const titleInput = document.getElementById(`${tournamentId}-edit-title`);
+    const dateInput = document.getElementById(`${tournamentId}-edit-date`);
+    const timeInput = document.getElementById(`${tournamentId}-edit-time`);
+    const locationInput = document.getElementById(`${tournamentId}-edit-location`);
+    const formatInput = document.getElementById(`${tournamentId}-edit-format`);
+    const skillInput = document.getElementById(`${tournamentId}-edit-skill`);
+    const feeInput = document.getElementById(`${tournamentId}-edit-fee`);
+    if (!titleInput || !dateInput || !timeInput || !locationInput || !formatInput || !skillInput || !feeInput) {
+        return;
+    }
+
+    const payload = {
+        title: titleInput.value.trim(),
+        startDate: dateInput.value || null,
+        startTimeEt: timeInput.value || null,
+        location: locationInput.value.trim(),
+        formatType: formatInput.value === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles',
+        skillLevelCap: skillInput.value === '' ? null : Number(skillInput.value),
+        entryFeeAmount: feeInput.value === '' ? null : Number(feeInput.value)
+    };
+
+    const button = document.getElementById(`${tournamentId}-edit-details-button`);
+    const previousLabel = button ? button.textContent : '';
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Saving...';
+    }
+
+    try {
+        const token = await window.authUtils.getAuthToken();
+        const response = await fetch(`/api/tournaments/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.error || 'Failed to save tournament details.');
+            return;
+        }
+        if (data.tournament) {
+            updateTournamentInStore(data.tournament);
+            updateTournamentCardDisplay(data.tournament);
+        }
+        toggleTournamentDetailsEditor(tournamentId, false);
+    } catch (error) {
+        console.error('Save tournament details error:', error);
+        alert('Failed to save tournament details.');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = previousLabel || 'Edit Details';
+        }
+    }
 }
 
 // ========================================
@@ -1738,7 +2021,7 @@ async function renderRegistrationList(tournamentId) {
     const count = document.getElementById(`${tournamentId}-registration-count`);
     if (!list || !count) return;
 
-    const tournament = TOURNAMENTS.upcoming.find(t => t.id === tournamentId);
+    const tournament = findUpcomingTournament(tournamentId);
     const doubles = tournament ? isDoublesTournament(tournament) : false;
     let teams = [];
     let maxTeams = 12;
@@ -1962,7 +2245,7 @@ function toggleTournamentView(tournamentId) {
 }
 
 async function refreshTournamentButtons() {
-    const tournaments = TOURNAMENTS.upcoming || [];
+    const tournaments = getUpcomingTournaments();
     for (const tournament of tournaments) {
         try {
             const settings = await fetchTournamentSettings(tournament.id);
@@ -2000,7 +2283,7 @@ async function joinTeam(tournamentId, teamIndex) {
     const linked = await ensureDuprLinked();
     if (!linked) return;
 
-    const tournament = TOURNAMENTS.upcoming.find(t => t.id === tournamentId);
+    const tournament = findUpcomingTournament(tournamentId);
     if (!tournament || !isDoublesTournament(tournament)) {
         alert('This tournament is not a doubles event.');
         return;
@@ -2177,7 +2460,7 @@ function toggleResults(tournamentId) {
 }
 
 async function loadTournamentBracket(tournamentId) {
-    const tournament = TOURNAMENTS.results.find(t => t.id === tournamentId);
+    const tournament = getResultsTournaments().find(t => t.id === tournamentId);
     if (!tournament || !tournament.csvUrl) return;
     
     try {
@@ -2383,9 +2666,15 @@ function renderBracket(tournamentId, data) {
 // ========================================
 
 // Render tournaments when page loads
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        await loadTournaments();
+    } catch (error) {
+        console.error('Failed to load tournaments:', error);
+    }
     renderUpcomingTournaments();
     renderResults();
+    refreshAdminDetailEditors();
     checkTournamentStatus();
     const openRegistrationId = getOpenRegistration();
     if (openRegistrationId) {
@@ -2403,6 +2692,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.authUtils.ready().then(() => {
             return window.authUtils.loadAuthProfile();
         }).then(() => {
+            refreshAdminDetailEditors();
             const openPanels = document.querySelectorAll('[id$="-registration"]:not(.hidden)');
             openPanels.forEach(panel => {
                 const tournamentId = panel.id.replace('-registration', '');
@@ -2434,6 +2724,7 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('auth:changed', () => {
+    refreshAdminDetailEditors();
     const openPanels = document.querySelectorAll('[id$="-registration"]:not(.hidden)');
     openPanels.forEach(panel => {
         const tournamentId = panel.id.replace('-registration', '');

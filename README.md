@@ -7,7 +7,7 @@ A clean, modern website for pickleball tournament hosting.
 ```
 driftwood-pickleball/
 ├── index.html                 # Main website (rarely needs updating)
-├── tournaments-config.js      # Tournament data (update this to add tournaments)
+├── functions/api/tournaments/ # Tournament data APIs (DB-backed source of truth)
 ├── tournaments-dynamic.js     # Tournament rendering logic (don't modify)
 ├── wrangler.jsonc            # Cloudflare Pages configuration
 ├── photos/                    # Tournament winner photos
@@ -105,32 +105,36 @@ Cloudflare automatically deploys changes in 1-2 minutes.
 
 ## Adding Tournaments
 
-### Adding an Upcoming Tournament
+### Editing Upcoming Tournament Details
 
-**You only need to edit `tournaments-config.js`!**
+Upcoming tournament details are now stored in D1 and edited from the site UI by admins.
 
-1. Open `tournaments-config.js`
-2. Add a new object to the `upcoming` array:
+1. Sign in as an admin
+2. Open the tournament card
+3. Click **Edit Details**
+4. Update title/date/time/location/format/skill cap/entry fee
+5. Click **Save Details**
 
-```javascript
-{
-    id: 'feb15-tournament',              // Unique ID (lowercase, no spaces)
-    title: 'Saturday February 15 Open',  // Display name
-    startTime: '2:00 PM',                // Start time
-    location: 'The Picklr Westbrook',    // Venue
-    format: 'Open Doubles',              // Tournament format
-    skillLevel: 'Open',                  // Skill restrictions
-    entryFee: '$20 per player',          // Entry fee
-    prizeSplit: '60% - 30% - 10%',       // Prize distribution
-    registerUrl: 'https://link.swishsportsapp.com/XXXXX',  // Registration link
-    theme: 'blue',                       // 'blue' or 'gold' (use gold for mixed gender)
-    liveStart: new Date('2026-02-15T14:00:00'),  // When "Watch Live" button appears
-    liveEnd: new Date('2026-02-15T18:00:00')     // When card disappears
-}
+Fields are stored separately in DB (ET timezone) and rendered as:
+`2:00 PM - Jan 24 @ The Picklr Westbrook`
+
+### Adding an Upcoming Tournament (developer-only, current phase)
+
+You can insert a new row into the `tournaments` table:
+
+```sql
+INSERT INTO tournaments (
+  id, title, start_date, start_time_et, timezone, location,
+  format_type, skill_level_cap, entry_fee_amount, prize_split,
+  theme, status, display_order
+) VALUES (
+  'feb15-tournament', 'Saturday February 15 Open', '2026-02-15', '14:00', 'America/New_York',
+  'The Picklr Westbrook', 'coed_doubles', 9.25, 20, '50% - 30% - 20%',
+  'blue', 'upcoming', 40
+);
 ```
 
-3. Save, commit, and push to GitHub
-4. **That's it!** The tournament card appears automatically.
+3. Deploy. The new card appears automatically from `/api/tournaments`.
 
 ### Adding Tournament Results
 
@@ -158,22 +162,15 @@ Cloudflare automatically deploys changes in 1-2 minutes.
    - Add photo to `photos/` folder
    - Name it: `winners-feb15.jpg`
 
-4. **Add to `tournaments-config.js`**
-   - Add to the `results` array:
+4. **Save results fields in D1**
+   - Update `csv_url` and `photo_url` on the completed tournament row
 
-```javascript
-{
-    id: 'feb15',                         // Unique ID (lowercase, no spaces)
-    title: 'Saturday February 15 Open',  // Display name
-    location: 'The Picklr Westbrook',    // Venue
-    format: 'Open Doubles',              // Tournament format
-    skillLevel: 'Open',                  // Skill restrictions
-    entryFee: '$20 per player',          // Entry fee
-    prizeSplit: '60% - 30% - 10%',       // Prize distribution
-    theme: 'blue',                       // 'blue' or 'gold'
-    csvUrl: getSheetURL(123456789),      // Use the GID from step 2
-    photoUrl: 'photos/winners-feb15.jpg' // Photo path
-}
+```sql
+UPDATE tournaments
+SET status = 'completed',
+    csv_url = 'https://docs.google.com/spreadsheets/d/e/.../pub?gid=123456789&single=true&output=csv',
+    photo_url = 'photos/winners-feb15.jpg'
+WHERE id = 'feb15';
 ```
 
 5. Save, commit, and push to GitHub
@@ -190,15 +187,11 @@ Cloudflare automatically deploys changes in 1-2 minutes.
    - Click "Publish"
    - Copy the URL
 
-2. **Update `tournaments-config.js`**:
-   - Replace `SHEET_BASE_URL` with your published URL
-   ```javascript
-   const SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/YOUR_PUBLISHED_URL/pub';
-   ```
+2. **Store the published CSV URL in D1 (`csv_url`)**
 
-3. **Never republish again!**
+3. **Never republish again**
    - Just create new sheet tabs
-   - Reference them by GID using `getSheetURL(gid)`
+   - Build CSV URLs with the tab GID (`.../pub?gid=<gid>&single=true&output=csv`)
 
 ## Email Subscription Setup
 
@@ -249,7 +242,7 @@ The site uses two color schemes:
 ## File Maintenance Guide
 
 ### Files You'll Update Regularly:
-- **tournaments-config.js** - Add/remove tournaments
+- **D1 tournaments rows** - Add/remove/edit tournaments
 - **photos/** - Upload winner photos
 - **Google Sheets** - Add tournament results
 
@@ -263,13 +256,13 @@ The site uses two color schemes:
 ## Troubleshooting
 
 ### Tournament card not appearing
-- Check that tournament is in `TOURNAMENTS.upcoming` or `TOURNAMENTS.results`
+- Check the tournament row in D1 (`status`, `display_order`, and required fields)
 - Verify all required fields are filled
 - Check browser console for errors (F12)
 
 ### Bracket not loading
 - Verify Google Sheet is published (entire document)
-- Check GID is correct in `getSheetURL(gid)`
+- Check the `csv_url` value on the tournament row (must include the correct GID)
 - Ensure sheet tab has exact format (5 columns: Round, Team 1, Team 1 Score, Team 2, Team 2 Score)
 
 ### Live button not switching
