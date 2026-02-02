@@ -435,45 +435,6 @@ function adminSettingsMarkup(tournamentId) {
                     >
                 </div>
             </div>
-            <div class="mt-4 pt-4 border-t border-gray-200 space-y-3">
-                <h5 class="text-sm font-semibold text-ocean-blue">Add Guest Player</h5>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input
-                        type="text"
-                        id="${tournamentId}-guest-name"
-                        class="border border-gray-300 rounded px-2 py-1 text-sm sm:col-span-1"
-                        placeholder="Full name"
-                    >
-                    <input
-                        type="number"
-                        inputmode="decimal"
-                        step="0.01"
-                        min="0"
-                        max="10"
-                        id="${tournamentId}-guest-doubles"
-                        class="border border-gray-300 rounded px-2 py-1 text-sm"
-                        placeholder="Doubles rating"
-                    >
-                    <input
-                        type="number"
-                        inputmode="decimal"
-                        step="0.01"
-                        min="0"
-                        max="10"
-                        id="${tournamentId}-guest-singles"
-                        class="border border-gray-300 rounded px-2 py-1 text-sm"
-                        placeholder="Singles rating"
-                    >
-                </div>
-                <button
-                    type="button"
-                    id="${tournamentId}-add-guest-btn"
-                    onclick="addGuestPlayer('${tournamentId}')"
-                    class="w-full bg-ocean-blue text-white text-sm font-semibold py-2 rounded-lg hover:bg-ocean-teal transition"
-                >
-                    Add Guest Team
-                </button>
-            </div>
         </div>
     `;
 }
@@ -1995,68 +1956,6 @@ async function joinTeam(tournamentId, teamIndex) {
     } catch (error) {
         console.error('Join team error:', error);
         alert('Failed to join team.');
-    }
-}
-
-async function addGuestPlayer(tournamentId) {
-    const auth = window.authUtils;
-    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
-    if (!user) {
-        if (auth && auth.signIn) {
-            await auth.signIn();
-        } else {
-            alert('Please sign in to manage registrations.');
-        }
-        return;
-    }
-
-    const nameInput = document.getElementById(`${tournamentId}-guest-name`);
-    const doublesInput = document.getElementById(`${tournamentId}-guest-doubles`);
-    const singlesInput = document.getElementById(`${tournamentId}-guest-singles`);
-    const button = document.getElementById(`${tournamentId}-add-guest-btn`);
-    if (!nameInput || !doublesInput || !singlesInput) return;
-
-    const displayName = nameInput.value.trim();
-    if (!displayName) {
-        alert('Guest name is required.');
-        return;
-    }
-
-    const parseRating = (raw) => {
-        const text = String(raw || '').trim();
-        if (!text) return null;
-        const num = Number(text);
-        if (!Number.isFinite(num) || num < 0 || num > 10) return null;
-        return Number(num.toFixed(2));
-    };
-
-    const doublesRating = parseRating(doublesInput.value);
-    const singlesRating = parseRating(singlesInput.value);
-    if (String(doublesInput.value || '').trim() && doublesRating === null) {
-        alert('Doubles rating must be between 0 and 10.');
-        return;
-    }
-    if (String(singlesInput.value || '').trim() && singlesRating === null) {
-        alert('Singles rating must be between 0 and 10.');
-        return;
-    }
-
-    if (button) button.disabled = true;
-    try {
-        const ok = await submitRegistration({
-            action: 'add_guest',
-            tournamentId,
-            extra: { displayName, doublesRating, singlesRating }
-        });
-        if (!ok) return;
-        nameInput.value = '';
-        doublesInput.value = '';
-        singlesInput.value = '';
-    } catch (error) {
-        console.error('Add guest error:', error);
-        alert('Failed to add guest player.');
-    } finally {
-        if (button) button.disabled = false;
     }
 }
 
