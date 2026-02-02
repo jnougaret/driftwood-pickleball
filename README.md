@@ -1,6 +1,6 @@
 # Driftwood Pickleball Website
 
-A clean, modern website for Maine's premier pickleball tournament series with data-driven tournament management.
+A clean, modern website for pickleball tournament hosting.
 
 ## Project Structure
 
