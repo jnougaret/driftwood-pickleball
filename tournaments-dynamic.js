@@ -1115,6 +1115,7 @@ async function renderTournamentView(tournamentId, options = {}) {
                 </div>
             `;
         }).join('');
+        applyRoundCardLayout(roundsContainer);
 
         if (options.scrollToResults) {
             requestAnimationFrame(() => {
@@ -1136,6 +1137,30 @@ function scrollToRound(tournamentId, index) {
     const card = roundsContainer.children[index];
     if (!card) return;
     roundsContainer.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
+}
+
+function applyRoundCardLayout(roundsContainer) {
+    if (!roundsContainer) return;
+    const cards = Array.from(roundsContainer.children || []);
+    if (!cards.length) return;
+
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (isMobile) {
+        const width = roundsContainer.clientWidth;
+        roundsContainer.style.gap = '0px';
+        cards.forEach(card => {
+            card.style.minWidth = `${width}px`;
+            card.style.width = `${width}px`;
+            card.style.scrollSnapAlign = 'start';
+        });
+    } else {
+        roundsContainer.style.gap = '';
+        cards.forEach(card => {
+            card.style.minWidth = '';
+            card.style.width = '';
+            card.style.scrollSnapAlign = '';
+        });
+    }
 }
 
 const tournamentPollers = new Map();
@@ -1493,6 +1518,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             </div>
         `;
     }).join('');
+    applyRoundCardLayout(roundsContainer);
 
     if (resetScroll) {
         roundsContainer.scrollLeft = 0;
@@ -2367,6 +2393,12 @@ window.addEventListener('visibilitychange', () => {
 window.addEventListener('beforeunload', () => {
     flushSettingsSaves();
     flushPlayoffSettingsSaves();
+});
+
+window.addEventListener('resize', () => {
+    document.querySelectorAll('[id$="-rounds-container"]').forEach(container => {
+        applyRoundCardLayout(container);
+    });
 });
 
 window.addEventListener('auth:changed', () => {
