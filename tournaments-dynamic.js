@@ -1139,12 +1139,16 @@ function scrollToRound(tournamentId, index) {
 }
 
 const tournamentPollers = new Map();
-const TOURNAMENT_POLL_INTERVAL_MS = 1200;
+const TOURNAMENT_POLL_INTERVAL_MS = 2000;
 
 function startTournamentPolling(tournamentId) {
     if (tournamentPollers.has(tournamentId)) return;
     const interval = setInterval(() => {
         if (document.hidden) return;
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
+            return;
+        }
         renderTournamentView(tournamentId);
     }, TOURNAMENT_POLL_INTERVAL_MS);
     tournamentPollers.set(tournamentId, interval);
@@ -1622,7 +1626,7 @@ async function submitPlayoffScore(tournamentId, roundNumber, matchNumber) {
             return;
         }
         setPlayoffVersion(tournamentId, roundNumber, matchNumber, payload && payload.version);
-        renderTournamentView(tournamentId, { force: true, preserveScroll: true });
+        // Keep focus stable while entering scores; polling will sync other users.
     } catch (error) {
         console.error('Playoff score update error:', error);
     }
@@ -1665,7 +1669,7 @@ async function submitScore(tournamentId, matchId) {
             return;
         }
         setRoundRobinVersion(tournamentId, matchId, payload && payload.version);
-        renderTournamentView(tournamentId, { force: true, preserveScroll: true });
+        // Keep focus stable while entering scores; polling will sync other users.
     } catch (error) {
         console.error('Score update error:', error);
     }
