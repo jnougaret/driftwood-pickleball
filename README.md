@@ -48,7 +48,7 @@ driftwood-pickleball/
 Schema migrations live in `migrations/`. For a clean local setup, run:
 
 ```bash
-wrangler d1 execute driftwood-pickleball-db --local --file migrations/001_init.sql
+wrangler d1 execute driftwood-pickleball-db-v2 --local --file migrations/001_init.sql
 ```
 
 ### Local Pages + Functions (with auth)
