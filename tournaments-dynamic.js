@@ -1738,6 +1738,7 @@ async function renderRegistrationList(tournamentId) {
         ? window.authUtils.getCurrentUser()
         : null;
     const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
+    const isAdmin = window.authProfile && window.authProfile.isAdmin;
     const isRegistered = currentUserId
         ? teams.some(team => (team.players || []).some(player => player.id === currentUserId))
         : false;
@@ -1747,7 +1748,6 @@ async function renderRegistrationList(tournamentId) {
     if (!teams.length) {
         list.innerHTML = '<p class="text-sm text-gray-500">No teams registered yet.</p>';
     } else {
-        const isAdmin = window.authProfile && window.authProfile.isAdmin;
         const rows = teams.map((team, index) => {
             const players = team.players || [];
             const playerLines = players.map(player => {
@@ -1864,6 +1864,23 @@ async function renderRegistrationList(tournamentId) {
                 actionButton.setAttribute('onclick', `registerTeam('${tournamentId}')`);
                 actionButton.disabled = false;
             }
+        }
+    }
+
+    if (registrationActions) {
+        const quickGuestButtonId = `${tournamentId}-add-guest-quick`;
+        const existingQuickGuestButton = document.getElementById(quickGuestButtonId);
+        if (isAdmin) {
+            if (!existingQuickGuestButton) {
+                const quickGuestButton = document.createElement('button');
+                quickGuestButton.id = quickGuestButtonId;
+                quickGuestButton.className = 'mt-2 block w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue text-ocean-blue hover:bg-ocean-blue hover:text-white transition';
+                quickGuestButton.textContent = 'Add Guest Team';
+                quickGuestButton.onclick = () => addGuestPlayerQuick(tournamentId);
+                registrationActions.appendChild(quickGuestButton);
+            }
+        } else if (existingQuickGuestButton) {
+            existingQuickGuestButton.remove();
         }
     }
 
@@ -2035,6 +2052,49 @@ async function addGuestPlayer(tournamentId) {
         alert('Failed to add guest player.');
     } finally {
         if (button) button.disabled = false;
+    }
+}
+
+async function addGuestPlayerQuick(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) {
+        if (auth && auth.signIn) {
+            await auth.signIn();
+        }
+        return;
+    }
+
+    const displayName = (window.prompt('Guest player name:') || '').trim();
+    if (!displayName) return;
+
+    const parseRating = (label) => {
+        const raw = window.prompt(`${label} (optional, 0-10):`, '');
+        if (raw === null) return null;
+        const text = String(raw).trim();
+        if (!text) return null;
+        const num = Number(text);
+        if (!Number.isFinite(num) || num < 0 || num > 10) {
+            alert(`${label} must be between 0 and 10.`);
+            return undefined;
+        }
+        return Number(num.toFixed(2));
+    };
+
+    const doublesRating = parseRating('Doubles rating');
+    if (doublesRating === undefined) return;
+    const singlesRating = parseRating('Singles rating');
+    if (singlesRating === undefined) return;
+
+    try {
+        await submitRegistration({
+            action: 'add_guest',
+            tournamentId,
+            extra: { displayName, doublesRating, singlesRating }
+        });
+    } catch (error) {
+        console.error('Add guest quick error:', error);
+        alert('Failed to add guest player.');
     }
 }
 
