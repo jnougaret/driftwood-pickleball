@@ -239,23 +239,22 @@
         }
 
         .rounds-scroll {
-            scrollbar-width: none;
+            scrollbar-width: auto;
+            scrollbar-color: #1a3a52 #d1d5db;
         }
 
         .rounds-scroll::-webkit-scrollbar {
-            display: none;
+            height: 10px;
         }
 
-        .round-indicator {
-            width: 36px;
-            height: 8px;
+        .rounds-scroll::-webkit-scrollbar-track {
+            background: #d1d5db;
             border-radius: 999px;
-            background: #1a3a52;
-            transition: background-color 0.2s ease;
         }
 
-        .round-indicator.is-active {
-            background: #d9a03a;
+        .rounds-scroll::-webkit-scrollbar-thumb {
+            background: #1a3a52;
+            border-radius: 999px;
         }
 
         .tournament-view-block {
@@ -310,7 +309,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 class="text-5xl md:text-6xl font-bold mb-6">Harbor Tournament Series</h2>
             <p class="text-xl max-w-3xl mx-auto mb-8">
-                Competitive, player-focused events. No buried treasure - prize pools paid out in full.
+                Player-focused events. No rake - 100% prize pools.
             </p>
             <a href="#tournaments" class="inline-block font-semibold px-8 py-3 rounded-lg transition transform hover:scale-105 text-white" style="background-color: #d9a03a;" onmouseover="this.style.backgroundColor='#e8b44f'" onmouseout="this.style.backgroundColor='#d9a03a'">
                 View Tournaments

@@ -148,8 +148,7 @@ function createTournamentCard(tournament, type) {
                             <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
                         </div>
-                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"></div>
-                        <div id="${tournament.id}-round-indicators" class="mt-1 flex items-center justify-center gap-2"></div>
+                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
                     </div>
                 </div>
             </div>
@@ -864,7 +863,6 @@ async function fetchPlayoffState(tournamentId) {
 async function renderTournamentView(tournamentId, options = {}) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
-    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!view || !roundsContainer) return;
     if (!options.force) {
         const activeEl = document.activeElement;
@@ -998,7 +996,6 @@ async function renderTournamentView(tournamentId, options = {}) {
             return a.name.localeCompare(b.name);
         });
 
-        roundsContainer.dataset.rendering = 'true';
         roundsContainer.innerHTML = roundsWithResults.map(round => {
             if (round === 'results') {
                 const rows = standings.map(team => {
@@ -1112,49 +1109,17 @@ async function renderTournamentView(tournamentId, options = {}) {
             return `
                 <div class="min-w-[290px] snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
                     <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
-                    <div class="space-y-4">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-white/70">No matches scheduled.</div>' : '')}</div>
+                    <div class="space-y-2">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-white/70">No matches scheduled.</div>' : '')}</div>
                 </div>
             `;
         }).join('');
-
-        if (indicators) {
-            indicators.innerHTML = roundsWithResults.map((round, index) => `
-                <button
-                    type="button"
-                    class="round-indicator"
-                    aria-label="${round === 'results' ? 'Go to results' : `Go to round ${round}`}"
-                    onclick="scrollToRound('${tournamentId}', ${index})"
-                ></button>
-            `).join('');
-        }
-
-        if (!roundsContainer.dataset.scrollListener) {
-            roundsContainer.dataset.scrollListener = 'true';
-            let ticking = false;
-            roundsContainer.addEventListener('scroll', () => {
-                if (roundsContainer.dataset.rendering === 'true') return;
-                if (ticking) return;
-                ticking = true;
-                requestAnimationFrame(() => {
-                    updateRoundIndicator(tournamentId);
-                    ticking = false;
-                });
-            });
-        }
 
         if (options.scrollToResults) {
             requestAnimationFrame(() => {
                 scrollToRound(tournamentId, resultsIndex);
                 setTimeout(() => {
                     scrollToRound(tournamentId, resultsIndex);
-                    updateRoundIndicator(tournamentId);
-                    roundsContainer.dataset.rendering = 'false';
                 }, 120);
-            });
-        } else {
-            requestAnimationFrame(() => {
-                updateRoundIndicator(tournamentId);
-                roundsContainer.dataset.rendering = 'false';
             });
         }
     } catch (error) {
@@ -1169,33 +1134,6 @@ function scrollToRound(tournamentId, index) {
     const card = roundsContainer.children[index];
     if (!card) return;
     roundsContainer.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
-}
-
-function updateRoundIndicator(tournamentId) {
-    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
-    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
-    if (!roundsContainer || !indicators) return;
-    const activeEl = document.activeElement;
-    if (activeEl && activeEl.classList && activeEl.classList.contains('score-input')) {
-        return;
-    }
-    const cards = Array.from(roundsContainer.children);
-    if (!cards.length) return;
-
-    const scrollLeft = roundsContainer.scrollLeft;
-    let activeIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    cards.forEach((card, index) => {
-        const distance = Math.abs(card.offsetLeft - scrollLeft);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            activeIndex = index;
-        }
-    });
-
-    Array.from(indicators.children).forEach((dot, index) => {
-        dot.classList.toggle('is-active', index === activeIndex);
-    });
 }
 
 const tournamentPollers = new Map();
@@ -1351,7 +1289,6 @@ function playoffRoundLabel(bracketSize, roundNumber) {
 
 async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll = false, preserveScrollLeft = null) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
-    const indicators = document.getElementById(`${tournamentId}-round-indicators`);
     if (!roundsContainer) return;
 
     const seedOrder = playoff.seedOrder || [];
@@ -1364,7 +1301,6 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
     const totalRounds = Math.log2(bracketSize);
     const scoreMap = buildPlayoffScoreMap(scores);
 
-    roundsContainer.dataset.rendering = 'true';
     roundsContainer.innerHTML = rounds.map((roundMatches, roundIndex) => {
         const roundNumber = roundIndex + 1;
         const isFinal = roundNumber === totalRounds;
@@ -1546,41 +1482,11 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         `;
     }).join('');
 
-    if (indicators) {
-        indicators.innerHTML = rounds.map((_, index) => `
-            <button
-                type="button"
-                class="round-indicator"
-                aria-label="Go to ${playoffRoundLabel(bracketSize, index + 1)}"
-                onclick="scrollToRound('${tournamentId}', ${index})"
-            ></button>
-        `).join('');
-    }
-
     if (resetScroll) {
         roundsContainer.scrollLeft = 0;
     } else if (preserveScrollLeft !== null) {
         roundsContainer.scrollLeft = preserveScrollLeft;
     }
-
-    if (!roundsContainer.dataset.scrollListener) {
-        roundsContainer.dataset.scrollListener = 'true';
-        let ticking = false;
-        roundsContainer.addEventListener('scroll', () => {
-            if (roundsContainer.dataset.rendering === 'true') return;
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(() => {
-                updateRoundIndicator(tournamentId);
-                ticking = false;
-            });
-        });
-    }
-
-    requestAnimationFrame(() => {
-        updateRoundIndicator(tournamentId);
-        roundsContainer.dataset.rendering = 'false';
-    });
 }
 
 let scoreSaveTimeout;
