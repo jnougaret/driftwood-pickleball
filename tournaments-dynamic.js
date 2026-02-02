@@ -1234,7 +1234,10 @@ async function renderTournamentView(tournamentId, options = {}) {
             ? window.authUtils.getCurrentUser()
             : null;
         const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
-        const isAdmin = window.authProfile && window.authProfile.isAdmin;
+        const hasAdminTournamentAction = Boolean(
+            document.getElementById(`${tournamentId}-tournament-actions`)?.querySelector('button')
+        );
+        const isAdmin = Boolean((window.authProfile && window.authProfile.isAdmin) || hasAdminTournamentAction);
         const title = document.getElementById(`${tournamentId}-tournament-title`);
         if (playoff && playoff.status === 'playoff') {
             if (title) {
