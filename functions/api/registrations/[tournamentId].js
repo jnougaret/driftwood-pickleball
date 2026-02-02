@@ -166,14 +166,6 @@ export async function onRequestPost({ request, env, params }) {
         if (status !== 'registration') {
             return jsonResponse({ error: 'Tournament has started' }, 400);
         }
-        const maxTeams = await getMaxTeams(env, tournamentId);
-        const teamCountResult = await env.DB.prepare(
-            'SELECT COUNT(*) AS count FROM teams WHERE tournament_id = ?'
-        ).bind(tournamentId).first();
-        const teamCount = teamCountResult?.count ?? 0;
-        if (teamCount >= maxTeams) {
-            return jsonResponse({ error: 'Registration is full' }, 400);
-        }
 
         const userId = auth.userId;
 
@@ -204,23 +196,67 @@ export async function onRequestPost({ request, env, params }) {
 
             const guestId = `guest_${crypto.randomUUID()}`;
             const guestEmail = `${guestId}@guest.driftwood.local`;
-            const teamId = crypto.randomUUID();
+            const targetTeamId = body.teamId ? String(body.teamId) : null;
 
-            await env.DB.batch([
-                env.DB.prepare(
-                    `INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating)
-                     VALUES (?, ?, ?, ?, ?, ?)`
-                ).bind(guestId, guestEmail, displayName, null, doublesRating, singlesRating),
-                env.DB.prepare(
-                    'INSERT INTO teams (id, tournament_id, created_by) VALUES (?, ?, ?)'
-                ).bind(teamId, tournamentId, userId),
-                env.DB.prepare(
-                    'INSERT INTO team_members (team_id, user_id) VALUES (?, ?)'
-                ).bind(teamId, guestId)
-            ]);
+            if (targetTeamId) {
+                const targetTeam = await env.DB.prepare(
+                    'SELECT id FROM teams WHERE id = ? AND tournament_id = ?'
+                ).bind(targetTeamId, tournamentId).first();
+                if (!targetTeam) {
+                    return jsonResponse({ error: 'Team not found' }, 404);
+                }
+                const memberCount = await env.DB.prepare(
+                    'SELECT COUNT(*) AS count FROM team_members WHERE team_id = ?'
+                ).bind(targetTeamId).first();
+                if (memberCount && memberCount.count >= 2) {
+                    return jsonResponse({ error: 'Team is full' }, 400);
+                }
+
+                await env.DB.batch([
+                    env.DB.prepare(
+                        `INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating)
+                         VALUES (?, ?, ?, ?, ?, ?)`
+                    ).bind(guestId, guestEmail, displayName, null, doublesRating, singlesRating),
+                    env.DB.prepare(
+                        'INSERT INTO team_members (team_id, user_id) VALUES (?, ?)'
+                    ).bind(targetTeamId, guestId)
+                ]);
+            } else {
+                const maxTeams = await getMaxTeams(env, tournamentId);
+                const teamCountResult = await env.DB.prepare(
+                    'SELECT COUNT(*) AS count FROM teams WHERE tournament_id = ?'
+                ).bind(tournamentId).first();
+                const teamCount = teamCountResult?.count ?? 0;
+                if (teamCount >= maxTeams) {
+                    return jsonResponse({ error: 'Registration is full' }, 400);
+                }
+
+                const teamId = crypto.randomUUID();
+                await env.DB.batch([
+                    env.DB.prepare(
+                        `INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating)
+                         VALUES (?, ?, ?, ?, ?, ?)`
+                    ).bind(guestId, guestEmail, displayName, null, doublesRating, singlesRating),
+                    env.DB.prepare(
+                        'INSERT INTO teams (id, tournament_id, created_by) VALUES (?, ?, ?)'
+                    ).bind(teamId, tournamentId, userId),
+                    env.DB.prepare(
+                        'INSERT INTO team_members (team_id, user_id) VALUES (?, ?)'
+                    ).bind(teamId, guestId)
+                ]);
+            }
 
             const teams = await listTeams(env, tournamentId);
             return jsonResponse({ teams });
+        }
+
+        const maxTeams = await getMaxTeams(env, tournamentId);
+        const teamCountResult = await env.DB.prepare(
+            'SELECT COUNT(*) AS count FROM teams WHERE tournament_id = ?'
+        ).bind(tournamentId).first();
+        const teamCount = teamCountResult?.count ?? 0;
+        if (teamCount >= maxTeams) {
+            return jsonResponse({ error: 'Registration is full' }, 400);
         }
 
         const profile = await getUserProfile(env, userId);

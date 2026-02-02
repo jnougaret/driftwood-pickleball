@@ -1760,14 +1760,19 @@ async function renderRegistrationList(tournamentId) {
             }).join('');
 
             const needsPartner = doubles && players.length === 1;
-        const joinButton = needsPartner
-            ? `<button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal whitespace-nowrap">Join</button>`
-            : '';
+            const joinControls = needsPartner
+                ? `
+                    <div class="flex items-center gap-2">
+                        <button onclick="joinTeam('${tournamentId}', ${index})" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal whitespace-nowrap">Join</button>
+                        ${isAdmin ? `<button onclick="addGuestPlayerQuick('${tournamentId}', '${team.id}')" class="text-xs font-semibold text-ocean-blue hover:text-ocean-teal whitespace-nowrap">Join as Guest</button>` : ''}
+                    </div>
+                `
+                : '';
 
             return `
                 <div class="flex items-center justify-between py-3 border-t border-gray-300 first:border-t-0">
                     <div class="flex-1 space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
-                    ${joinButton ? `<div class="shrink-0 pl-2">${joinButton}</div>` : ''}
+                    ${joinControls ? `<div class="shrink-0 pl-2">${joinControls}</div>` : ''}
                 </div>
             `;
         }).join('');
@@ -2055,7 +2060,7 @@ async function addGuestPlayer(tournamentId) {
     }
 }
 
-async function addGuestPlayerQuick(tournamentId) {
+async function addGuestPlayerQuick(tournamentId, teamId = null) {
     const auth = window.authUtils;
     const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
     if (!user) {
@@ -2090,6 +2095,7 @@ async function addGuestPlayerQuick(tournamentId) {
         await submitRegistration({
             action: 'add_guest',
             tournamentId,
+            teamId,
             extra: { displayName, doublesRating, singlesRating }
         });
     } catch (error) {
