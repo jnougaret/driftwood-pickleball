@@ -585,7 +585,9 @@ async function loadAdminSettings(tournamentId) {
         applySettingsToInputs(tournamentId, settings, currentTeamsCount);
     } catch (error) {
         console.error('Load settings error:', error);
-        settingsContainer.classList.add('hidden');
+        // Keep admin tools visible even if settings fetch fails.
+        settingsContainer.classList.remove('hidden');
+        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6 }, 6);
     }
 }
 
