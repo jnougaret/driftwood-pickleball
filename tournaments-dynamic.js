@@ -492,7 +492,6 @@ async function saveTournamentDetails(tournamentId) {
     };
 
     const button = document.getElementById(`${tournamentId}-edit-details-button`);
-    const previousLabel = button ? button.textContent : '';
     if (button) {
         button.disabled = true;
         button.textContent = 'Saving...';
@@ -524,7 +523,10 @@ async function saveTournamentDetails(tournamentId) {
     } finally {
         if (button) {
             button.disabled = false;
-            button.textContent = previousLabel || 'Edit Details';
+            const editor = document.getElementById(`${tournamentId}-details-editor`);
+            button.textContent = editor && !editor.classList.contains('hidden')
+                ? 'Close Editor'
+                : 'Edit Details';
         }
     }
 }
