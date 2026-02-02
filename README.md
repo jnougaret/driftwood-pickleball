@@ -1,6 +1,6 @@
 # Driftwood Pickleball Website
 
-A clean, modern website for pickleball tournament hosting with data-driven tournament management.
+A clean, modern website for pickleball tournament hosting.
 
 ## Project Structure
 
