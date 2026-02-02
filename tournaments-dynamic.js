@@ -148,7 +148,7 @@ function createTournamentCard(tournament, type) {
                             <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
                             <div id="${tournament.id}-tournament-actions" class="flex items-center gap-2"></div>
                         </div>
-                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-0 md:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
+                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-2 md:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
                     </div>
                 </div>
             </div>
@@ -508,6 +508,26 @@ function renderTeamName(name, formatter) {
         return formatTbdLine();
     }
     return formatter(name);
+}
+
+function getRoundCardTheme(index) {
+    const useGold = index % 2 === 1;
+    if (useGold) {
+        return {
+            bg: '#d9a03a',
+            border: 'rgba(217,160,58,0.55)',
+            titleClass: 'text-ocean-blue',
+            mutedClass: 'text-ocean-blue/80',
+            emptyClass: 'text-ocean-blue/80'
+        };
+    }
+    return {
+        bg: '#1a3a52',
+        border: 'rgba(26,58,82,0.35)',
+        titleClass: 'text-white',
+        mutedClass: 'text-white/60',
+        emptyClass: 'text-white/70'
+    };
 }
 
 function formatTeamNameLinesLight(name) {
@@ -998,7 +1018,8 @@ async function renderTournamentView(tournamentId, options = {}) {
             return a.name.localeCompare(b.name);
         });
 
-        roundsContainer.innerHTML = roundsWithResults.map(round => {
+        roundsContainer.innerHTML = roundsWithResults.map((round, roundIndex) => {
+            const theme = getRoundCardTheme(roundIndex);
             if (round === 'results') {
                 const rows = standings.map(team => {
                     const record = `(${team.wins}-${team.losses})`;
@@ -1072,10 +1093,10 @@ async function renderTournamentView(tournamentId, options = {}) {
                 ` : '';
 
                 return `
-                    <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
+                    <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
                         ${playoffControls}
-                        <div class="text-lg font-semibold text-white mb-3">Results</div>
-                        <div class="space-y-2">${rows || '<div class="text-sm text-white/70">No results yet.</div>'}</div>
+                        <div class="text-lg font-semibold ${theme.titleClass} mb-3">Results</div>
+                        <div class="space-y-2">${rows || `<div class="text-sm ${theme.emptyClass}">No results yet.</div>`}</div>
                     </div>
                 `;
             }
@@ -1109,9 +1130,9 @@ async function renderTournamentView(tournamentId, options = {}) {
             ` : '';
 
             return `
-                <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
-                    <h5 class="text-lg font-semibold text-white mb-3">Round ${round} of ${totalRounds}</h5>
-                    <div class="space-y-2">${cards}${byeCard || (roundMatches.length === 0 ? '<div class="text-sm text-white/70">No matches scheduled.</div>' : '')}</div>
+                <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
+                    <h5 class="text-lg font-semibold ${theme.titleClass} mb-3">Round ${round} of ${totalRounds}</h5>
+                    <div class="space-y-2">${cards}${byeCard || (roundMatches.length === 0 ? `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>` : '')}</div>
                 </div>
             `;
         }).join('');
@@ -1337,6 +1358,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
     const scoreMap = buildPlayoffScoreMap(scores);
 
     roundsContainer.innerHTML = rounds.map((roundMatches, roundIndex) => {
+        const theme = getRoundCardTheme(roundIndex);
         const roundNumber = roundIndex + 1;
         const isFinal = roundNumber === totalRounds;
         const nameFormatter = isFinal && bestOfThree
@@ -1509,11 +1531,11 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
         }
 
         return `
-            <div class="min-w-full md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: #1a3a52; border-color: rgba(26,58,82,0.35);">
-                <h5 class="text-lg font-semibold text-white mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
-                ${isFinal && bracketSize >= 4 ? '<div class="text-xs uppercase tracking-wide text-white/60 mb-2">Gold Match</div>' : ''}
-                <div class="space-y-4">${matchesHtml || '<div class="text-sm text-white/70">No matches scheduled.</div>'}</div>
-                ${isFinal && bracketSize >= 4 ? '<div class="text-xs uppercase tracking-wide text-white/60 mt-4 mb-2">Bronze Match</div>' : ''}
+            <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
+                <h5 class="text-lg font-semibold ${theme.titleClass} mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
+                ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mb-2">Gold Match</div>` : ''}
+                <div class="space-y-4">${matchesHtml || `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>`}</div>
+                ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mt-4 mb-2">Bronze Match</div>` : ''}
                 ${bronzeHtml}
             </div>
         `;
