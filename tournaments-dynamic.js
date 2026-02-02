@@ -1726,7 +1726,7 @@ async function renderRegistrationList(tournamentId) {
             return `
                 <div class="flex items-center justify-between py-3 border-t border-gray-300 first:border-t-0">
                     <div class="flex-1 space-y-1">${playerLines || '<div class=\"text-sm text-gray-500\">Open team</div>'}</div>
-                    ${joinButton ? `<div class="shrink-0 pl-4 ml-3 border-l border-gray-200">${joinButton}</div>` : ''}
+                    ${joinButton ? `<div class="shrink-0 pl-4 ml-3">${joinButton}</div>` : ''}
                 </div>
             `;
         }).join('');
