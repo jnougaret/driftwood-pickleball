@@ -99,6 +99,12 @@ async function getUserProfile(env, userId) {
     ).bind(userId).first();
 }
 
+async function getUserById(env, userId) {
+    return await env.DB.prepare(
+        'SELECT id, is_admin FROM users WHERE id = ?'
+    ).bind(userId).first();
+}
+
 async function findUserTeam(env, tournamentId, userId) {
     return await env.DB.prepare(
         `SELECT t.id AS team_id
@@ -151,22 +157,8 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const action = body.action;
-    if (!action || (action !== 'create' && action !== 'join')) {
+    if (!action || (action !== 'create' && action !== 'join' && action !== 'add_guest')) {
         return jsonResponse({ error: 'Invalid action' }, 400);
-    }
-
-    const userId = auth.userId;
-    const profile = await getUserProfile(env, userId);
-    if (!profile) {
-        return jsonResponse({ error: 'Profile required before registering' }, 400);
-    }
-    if (!profile.dupr_id) {
-        return jsonResponse({ error: 'DUPR account must be linked before registering' }, 400);
-    }
-
-    const existing = await findUserTeam(env, tournamentId, userId);
-    if (existing) {
-        return jsonResponse({ error: 'Already registered' }, 400);
     }
 
     try {
@@ -181,6 +173,67 @@ export async function onRequestPost({ request, env, params }) {
         const teamCount = teamCountResult?.count ?? 0;
         if (teamCount >= maxTeams) {
             return jsonResponse({ error: 'Registration is full' }, 400);
+        }
+
+        const userId = auth.userId;
+
+        if (action === 'add_guest') {
+            const requester = await getUserById(env, userId);
+            if (!requester || !requester.is_admin) {
+                return jsonResponse({ error: 'Forbidden' }, 403);
+            }
+
+            const displayName = String(body.displayName || '').trim();
+            if (!displayName) {
+                return jsonResponse({ error: 'Guest name is required' }, 400);
+            }
+
+            const parseRating = (value) => {
+                if (value === null || value === undefined || value === '') return null;
+                const parsed = Number(value);
+                if (!Number.isFinite(parsed) || parsed < 0 || parsed > 10) return null;
+                return parsed;
+            };
+
+            const doublesRating = parseRating(body.doublesRating);
+            const singlesRating = parseRating(body.singlesRating);
+            if ((body.doublesRating !== null && body.doublesRating !== undefined && body.doublesRating !== '' && doublesRating === null) ||
+                (body.singlesRating !== null && body.singlesRating !== undefined && body.singlesRating !== '' && singlesRating === null)) {
+                return jsonResponse({ error: 'Ratings must be numbers between 0 and 10' }, 400);
+            }
+
+            const guestId = `guest_${crypto.randomUUID()}`;
+            const guestEmail = `${guestId}@guest.driftwood.local`;
+            const teamId = crypto.randomUUID();
+
+            await env.DB.batch([
+                env.DB.prepare(
+                    `INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating)
+                     VALUES (?, ?, ?, ?, ?, ?)`
+                ).bind(guestId, guestEmail, displayName, null, doublesRating, singlesRating),
+                env.DB.prepare(
+                    'INSERT INTO teams (id, tournament_id, created_by) VALUES (?, ?, ?)'
+                ).bind(teamId, tournamentId, userId),
+                env.DB.prepare(
+                    'INSERT INTO team_members (team_id, user_id) VALUES (?, ?)'
+                ).bind(teamId, guestId)
+            ]);
+
+            const teams = await listTeams(env, tournamentId);
+            return jsonResponse({ teams });
+        }
+
+        const profile = await getUserProfile(env, userId);
+        if (!profile) {
+            return jsonResponse({ error: 'Profile required before registering' }, 400);
+        }
+        if (!profile.dupr_id) {
+            return jsonResponse({ error: 'DUPR account must be linked before registering' }, 400);
+        }
+
+        const existing = await findUserTeam(env, tournamentId, userId);
+        if (existing) {
+            return jsonResponse({ error: 'Already registered' }, 400);
         }
 
         if (action === 'create') {
