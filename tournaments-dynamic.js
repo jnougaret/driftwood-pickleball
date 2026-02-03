@@ -3037,7 +3037,7 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
         `;
     }).join('');
 
-    bracketDiv.innerHTML = `<div class="flex gap-4 overflow-x-auto pb-4" style="align-items:center;">${columns}</div>`;
+    bracketDiv.innerHTML = `<div class="playoff-results-bracket bracket-size-${bracketSize} flex gap-4 overflow-x-auto pb-4" style="align-items:center;">${columns}</div>`;
 }
 
 // ========================================

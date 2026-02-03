@@ -104,6 +104,20 @@
             gap: 100px;
         }
 
+        /* DB-rendered playoff results: shrink vertical spacing for smaller brackets */
+        .playoff-results-bracket.bracket-size-4 .bracket-round.semifinals,
+        .playoff-results-bracket.bracket-size-4 .bracket-round.finals {
+            min-height: 280px;
+        }
+
+        .playoff-results-bracket.bracket-size-4 .bracket-round.semifinals {
+            gap: 40px;
+        }
+
+        .playoff-results-bracket.bracket-size-2 .bracket-round.finals {
+            min-height: auto;
+        }
+
         .bracket-round.finals {
             justify-content: center;
             align-items: center; 
