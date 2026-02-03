@@ -3018,7 +3018,6 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
 
         return `
             <div class="bracket-round">
-                <h5 class="text-lg font-semibold text-ocean-blue mb-3 text-center">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
                 ${matchesHtml}
                 ${bronzeHtml}
             </div>
