@@ -335,6 +335,20 @@ function createTournamentCard(tournament, type) {
                 >
                     <span id="${tournament.id}-button-text">View Results</span>
                 </button>
+                <div id="${tournament.id}-results-admin-actions" class="hidden mt-3 flex items-center justify-end gap-2">
+                    <button
+                        onclick="archiveResultsCard('${tournament.id}')"
+                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Archive
+                    </button>
+                    <button
+                        onclick="deleteTournamentCard('${tournament.id}')"
+                        class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Delete
+                    </button>
+                </div>
             </div>
             
             <!-- Expandable Results -->
@@ -413,6 +427,18 @@ function refreshAdminDetailEditors() {
             actionRow.classList.add('hidden');
             actionRow.classList.remove('flex');
             toggleTournamentDetailsEditor(tournament.id, false);
+        }
+    });
+
+    getResultsTournaments().forEach(tournament => {
+        const resultsActions = document.getElementById(`${tournament.id}-results-admin-actions`);
+        if (!resultsActions) return;
+        if (isAdmin) {
+            resultsActions.classList.remove('hidden');
+            resultsActions.classList.add('flex');
+        } else {
+            resultsActions.classList.add('hidden');
+            resultsActions.classList.remove('flex');
         }
     });
 }
@@ -578,6 +604,45 @@ async function copyTournament(tournamentId) {
             copyButton.textContent = previousText || 'Copy Tournament';
         }
     }
+}
+
+async function manageTournament(tournamentId, action) {
+    if (!(window.authProfile && window.authProfile.isAdmin)) return false;
+    try {
+        const token = await window.authUtils.getAuthToken();
+        const response = await fetch(`/api/tournaments/manage/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action })
+        });
+        const payload = await readJsonSafe(response);
+        if (!response.ok) {
+            alert((payload && payload.error) || 'Failed to update tournament.');
+            return false;
+        }
+        await loadTournaments();
+        renderUpcomingTournaments();
+        renderResults();
+        refreshAdminDetailEditors();
+        return true;
+    } catch (error) {
+        console.error('Manage tournament error:', error);
+        alert('Failed to update tournament.');
+        return false;
+    }
+}
+
+async function archiveResultsCard(tournamentId) {
+    await manageTournament(tournamentId, 'archive');
+}
+
+async function deleteTournamentCard(tournamentId) {
+    const confirmed = window.confirm('Delete this tournament permanently? This cannot be undone.');
+    if (!confirmed) return;
+    await manageTournament(tournamentId, 'delete');
 }
 
 // ========================================
