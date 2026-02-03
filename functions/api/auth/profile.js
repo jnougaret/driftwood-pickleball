@@ -83,8 +83,7 @@ export async function onRequestGet({ request, env }) {
         }
 
         // Return user profile
-        const masterEmail = (env.MASTER_ADMIN_EMAIL || '').toLowerCase();
-        const isMasterAdmin = masterEmail && (result.email || '').toLowerCase() === masterEmail;
+        const isMasterAdmin = Boolean(profileEmail && masterEmail && profileEmail === masterEmail);
         return new Response(JSON.stringify({
             id: result.id,
             email: result.email,
