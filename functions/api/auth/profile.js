@@ -83,6 +83,8 @@ export async function onRequestGet({ request, env }) {
         }
 
         // Return user profile
+        const masterEmail = (env.MASTER_ADMIN_EMAIL || '').toLowerCase();
+        const isMasterAdmin = masterEmail && (result.email || '').toLowerCase() === masterEmail;
         return new Response(JSON.stringify({
             id: result.id,
             email: result.email,
@@ -91,6 +93,7 @@ export async function onRequestGet({ request, env }) {
             doublesRating: result.doubles_rating,
             singlesRating: result.singles_rating,
             isAdmin: Boolean(result.is_admin),
+            isMasterAdmin: Boolean(isMasterAdmin),
             createdAt: result.created_at,
             updatedAt: result.updated_at
         }), {
@@ -211,6 +214,7 @@ async function handleProfileUpdate(request, env) {
                 doublesRating: result.doubles_rating,
                 singlesRating: result.singles_rating,
                 isAdmin: Boolean(result.is_admin),
+                isMasterAdmin: Boolean(env.MASTER_ADMIN_EMAIL && result.email && result.email.toLowerCase() === env.MASTER_ADMIN_EMAIL.toLowerCase()),
                 createdAt: result.created_at,
                 updatedAt: result.updated_at
             }

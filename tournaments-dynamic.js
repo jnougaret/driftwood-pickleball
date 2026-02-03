@@ -400,6 +400,7 @@ function createTournamentCard(tournament, type) {
                     </button>
                     <button
                         onclick="deleteTournamentCard('${tournament.id}')"
+                        id="${tournament.id}-results-delete-button"
                         class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-semibold transition"
                     >
                         Delete
@@ -486,12 +487,17 @@ function checkTournamentStatus() {
 
 function refreshAdminDetailEditors() {
     const isAdmin = Boolean(window.authProfile && window.authProfile.isAdmin);
+    const isMasterAdmin = Boolean(window.authProfile && window.authProfile.isMasterAdmin);
     getUpcomingTournaments().forEach(tournament => {
         const actionRow = document.getElementById(`${tournament.id}-admin-edit-actions`);
         if (!actionRow) return;
+        const deleteButton = document.getElementById(`${tournament.id}-delete-details-button`);
         if (isAdmin) {
             actionRow.classList.remove('hidden');
             actionRow.classList.add('flex');
+            if (deleteButton) {
+                deleteButton.classList.toggle('hidden', !isMasterAdmin);
+            }
         } else {
             actionRow.classList.add('hidden');
             actionRow.classList.remove('flex');
@@ -502,9 +508,13 @@ function refreshAdminDetailEditors() {
     getResultsTournaments().forEach(tournament => {
         const resultsActions = document.getElementById(`${tournament.id}-results-admin-actions`);
         if (!resultsActions) return;
+        const deleteButton = document.getElementById(`${tournament.id}-results-delete-button`);
         if (isAdmin) {
             resultsActions.classList.remove('hidden');
             resultsActions.classList.add('flex');
+            if (deleteButton) {
+                deleteButton.classList.toggle('hidden', !isMasterAdmin);
+            }
         } else {
             resultsActions.classList.add('hidden');
             resultsActions.classList.remove('flex');

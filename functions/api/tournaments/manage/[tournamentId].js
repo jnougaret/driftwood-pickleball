@@ -9,7 +9,7 @@ function jsonResponse(body, status = 200) {
 
 async function getUserById(env, userId) {
     return await env.DB.prepare(
-        'SELECT id, is_admin FROM users WHERE id = ?'
+        'SELECT id, email, is_admin FROM users WHERE id = ?'
     ).bind(userId).first();
 }
 
@@ -95,6 +95,15 @@ export async function onRequestPost({ request, env, params }) {
     const action = String(body.action || '').trim();
     if (action !== 'archive' && action !== 'delete' && action !== 'set_photo') {
         return jsonResponse({ error: 'Invalid action' }, 400);
+    }
+
+    if (action === 'delete') {
+        const masterEmail = (env.MASTER_ADMIN_EMAIL || '').toLowerCase();
+        const requesterEmail = (requester.email || '').toLowerCase();
+        const isMasterAdmin = Boolean(masterEmail && requesterEmail && requesterEmail === masterEmail);
+        if (!isMasterAdmin) {
+            return jsonResponse({ error: 'Only master admin can delete tournaments' }, 403);
+        }
     }
 
     try {
