@@ -2925,6 +2925,17 @@ function playoffScoreLabel(score, teamSlot, bestOfThreeEnabled) {
     return teamSlot === 1 ? single.team1 : single.team2;
 }
 
+function playoffResultsRoundClass(bracketSize, roundNumber) {
+    if (bracketSize === 2) return 'finals';
+    if (bracketSize === 4) return roundNumber === 1 ? 'semifinals' : 'finals';
+    if (bracketSize >= 8) {
+        if (roundNumber === 1) return 'quarterfinals';
+        if (roundNumber === 2) return 'semifinals';
+        return 'finals';
+    }
+    return '';
+}
+
 function formatTeamFirstNames(teamName) {
     const value = String(teamName || '').trim();
     if (!value || value.toUpperCase() === 'TBD') return 'TBD';
@@ -3002,8 +3013,8 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
                 totalRounds
             );
             bronzeHtml = `
-                <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                 <div class="bracket-match bronze">
+                    <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                     <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'winner' : ''}">
                         <span class="${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'font-bold text-ocean-blue' : ''}">${bronzeTeam1}</span>
                         <span class="${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'font-bold text-ocean-blue' : ''}">${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span>
@@ -3016,15 +3027,17 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             `;
         }
 
+        const roundClass = playoffResultsRoundClass(bracketSize, roundNumber);
+
         return `
-            <div class="bracket-round">
+            <div class="bracket-round ${roundClass}">
                 ${matchesHtml}
                 ${bronzeHtml}
             </div>
         `;
     }).join('');
 
-    bracketDiv.innerHTML = `<div class="flex gap-4 overflow-x-auto pb-4" style="align-items:flex-start;">${columns}</div>`;
+    bracketDiv.innerHTML = `<div class="flex gap-4 overflow-x-auto pb-4" style="align-items:center;">${columns}</div>`;
 }
 
 // ========================================
