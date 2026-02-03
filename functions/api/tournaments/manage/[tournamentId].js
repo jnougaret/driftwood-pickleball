@@ -55,6 +55,15 @@ async function deleteTournament(env, tournamentId) {
     ]);
 }
 
+async function setTournamentPhoto(env, tournamentId, photoUrl) {
+    await env.DB.prepare(
+        `UPDATE tournaments
+         SET photo_url = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+    ).bind(photoUrl, tournamentId).run();
+}
+
 export async function onRequestPost({ request, env, params }) {
     const tournamentId = params.tournamentId;
     if (!tournamentId) {
@@ -84,15 +93,23 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const action = String(body.action || '').trim();
-    if (action !== 'archive' && action !== 'delete') {
+    if (action !== 'archive' && action !== 'delete' && action !== 'set_photo') {
         return jsonResponse({ error: 'Invalid action' }, 400);
     }
 
     try {
         if (action === 'archive') {
             await archiveTournament(env, tournamentId);
-        } else {
+        } else if (action === 'delete') {
             await deleteTournament(env, tournamentId);
+        } else {
+            const photoUrlRaw = body.photoUrl === undefined || body.photoUrl === null
+                ? ''
+                : String(body.photoUrl).trim();
+            if (photoUrlRaw.length > 255) {
+                return jsonResponse({ error: 'photoUrl is too long' }, 400);
+            }
+            await setTournamentPhoto(env, tournamentId, photoUrlRaw || null);
         }
         return jsonResponse({ success: true });
     } catch (error) {

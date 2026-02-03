@@ -336,6 +336,19 @@ function createTournamentCard(tournament, type) {
                     <span id="${tournament.id}-button-text">View Results</span>
                 </button>
                 <div id="${tournament.id}-results-admin-actions" class="hidden mt-3 flex items-center justify-end gap-2">
+                    <input
+                        id="${tournament.id}-results-photo-url"
+                        type="text"
+                        value="${tournament.photoUrl || ''}"
+                        placeholder="photos/winners-xxxx.jpg"
+                        class="w-56 px-2 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                    <button
+                        onclick="saveResultsPhotoPath('${tournament.id}')"
+                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Save Photo
+                    </button>
                     <button
                         onclick="archiveResultsCard('${tournament.id}')"
                         class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
@@ -606,7 +619,7 @@ async function copyTournament(tournamentId) {
     }
 }
 
-async function manageTournament(tournamentId, action) {
+async function manageTournament(tournamentId, action, extra = {}) {
     if (!(window.authProfile && window.authProfile.isAdmin)) return false;
     try {
         const token = await window.authUtils.getAuthToken();
@@ -616,7 +629,7 @@ async function manageTournament(tournamentId, action) {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ action })
+            body: JSON.stringify({ action, ...extra })
         });
         const payload = await readJsonSafe(response);
         if (!response.ok) {
@@ -637,6 +650,31 @@ async function manageTournament(tournamentId, action) {
 
 async function archiveResultsCard(tournamentId) {
     await manageTournament(tournamentId, 'archive');
+}
+
+async function saveResultsPhotoPath(tournamentId) {
+    const input = document.getElementById(`${tournamentId}-results-photo-url`);
+    if (!input) return;
+    const photoUrl = input.value.trim();
+    const ok = await manageTournament(tournamentId, 'set_photo', { photoUrl });
+    if (ok) {
+        const updated = getResultsTournaments().find(t => t.id === tournamentId);
+        const photoWrap = document.getElementById(`${tournamentId}-photo-wrap`);
+        const photoEl = document.getElementById(`${tournamentId}-photo`);
+        if (photoWrap) {
+            if (photoUrl) {
+                photoWrap.classList.remove('hidden');
+            } else {
+                photoWrap.classList.add('hidden');
+            }
+        }
+        if (photoEl && photoUrl) {
+            photoEl.src = photoUrl;
+        }
+        if (updated) {
+            updated.photoUrl = photoUrl || null;
+        }
+    }
 }
 
 async function deleteTournamentCard(tournamentId) {
