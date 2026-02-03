@@ -2971,8 +2971,14 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             return `
                 <div class="${matchClass}">
                     ${label}
-                    <div class="bracket-team ${winnerId === match.team1Id ? 'winner' : ''}"><span>${team1}</span><span>${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span></div>
-                    <div class="bracket-team ${winnerId === match.team2Id ? 'winner' : ''}"><span>${team2}</span><span>${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span></div>
+                    <div class="bracket-team ${winnerId === match.team1Id ? 'winner' : ''}">
+                        <span class="${winnerId === match.team1Id ? 'font-bold text-ocean-blue' : ''}">${team1}</span>
+                        <span class="${winnerId === match.team1Id ? 'font-bold text-ocean-blue' : ''}">${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span>
+                    </div>
+                    <div class="bracket-team ${winnerId === match.team2Id ? 'winner' : ''}">
+                        <span class="${winnerId === match.team2Id ? 'font-bold text-ocean-blue' : ''}">${team2}</span>
+                        <span class="${winnerId === match.team2Id ? 'font-bold text-ocean-blue' : ''}">${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -2998,8 +3004,14 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             bronzeHtml = `
                 <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                 <div class="bracket-match bronze">
-                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'winner' : ''}"><span>${bronzeTeam1}</span><span>${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span></div>
-                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[1] ? 'winner' : ''}"><span>${bronzeTeam2}</span><span>${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span></div>
+                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'winner' : ''}">
+                        <span class="${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'font-bold text-ocean-blue' : ''}">${bronzeTeam1}</span>
+                        <span class="${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'font-bold text-ocean-blue' : ''}">${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span>
+                    </div>
+                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[1] ? 'winner' : ''}">
+                        <span class="${bronzeWinnerId && bronzeWinnerId === losers[1] ? 'font-bold text-ocean-blue' : ''}">${bronzeTeam2}</span>
+                        <span class="${bronzeWinnerId && bronzeWinnerId === losers[1] ? 'font-bold text-ocean-blue' : ''}">${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span>
+                    </div>
                 </div>
             `;
         }
