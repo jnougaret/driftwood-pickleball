@@ -2441,7 +2441,16 @@ async function renderRegistrationList(tournamentId) {
         ? window.authUtils.getCurrentUser()
         : null;
     const currentUserId = currentUser ? (currentUser.id || currentUser.emailAddresses[0].emailAddress) : null;
-    const isAdmin = window.authProfile && window.authProfile.isAdmin;
+    let authProfile = window.authProfile || null;
+    if (!authProfile && currentUser && window.authUtils && window.authUtils.loadAuthProfile) {
+        try {
+            await window.authUtils.loadAuthProfile();
+            authProfile = window.authProfile || null;
+        } catch (error) {
+            authProfile = null;
+        }
+    }
+    const isAdmin = Boolean(authProfile && (authProfile.isAdmin || authProfile.isMasterAdmin));
     const isRegistered = currentUserId
         ? teams.some(team => (team.players || []).some(player => player.id === currentUserId))
         : false;
@@ -2599,7 +2608,7 @@ async function renderRegistrationList(tournamentId) {
     }
 
     const adminSettings = document.getElementById(`${tournamentId}-admin-settings`);
-    if (adminSettings && window.authProfile && window.authProfile.isAdmin) {
+    if (adminSettings && isAdmin) {
         loadAdminSettings(tournamentId);
         const hasMinTeams = teams.length >= 4;
         const allFull = teams.every(team => (team.players || []).length >= 2);
