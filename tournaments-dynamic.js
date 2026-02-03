@@ -278,7 +278,7 @@ function createTournamentCard(tournament, type) {
                                 </div>
                                 <input
                                     type="range"
-                                    min="4"
+                                    min="2"
                                     max="10"
                                     step="1"
                                     value="6"
@@ -393,13 +393,6 @@ function createTournamentCard(tournament, type) {
                 </div>
                 <div id="${tournament.id}-results-admin-actions" class="hidden mb-3 flex items-center justify-end gap-2">
                     <button
-                        id="${tournament.id}-results-edit-details-button"
-                        onclick="toggleResultsDetailsEditor('${tournament.id}')"
-                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
-                    >
-                        Edit Details
-                    </button>
-                    <button
                         onclick="archiveResultsCard('${tournament.id}')"
                         class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
                     >
@@ -410,6 +403,13 @@ function createTournamentCard(tournament, type) {
                         class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-semibold transition"
                     >
                         Delete
+                    </button>
+                    <button
+                        id="${tournament.id}-results-edit-details-button"
+                        onclick="toggleResultsDetailsEditor('${tournament.id}')"
+                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Edit Details
                     </button>
                 </div>
                 <button 
@@ -1047,7 +1047,7 @@ function adminSettingsMarkup(tournamentId) {
                     </div>
                     <input
                         type="range"
-                        min="4"
+                        min="2"
                         max="10"
                         step="1"
                         value="6"
@@ -1215,9 +1215,13 @@ function applySettingsToInputs(tournamentId, settings, minTeams) {
     }
 
     if (roundsInput && roundsValue && Number.isInteger(settings.rounds)) {
-        roundsInput.min = 4;
-        roundsInput.max = 10;
-        const safeRounds = Math.min(10, Math.max(4, settings.rounds));
+        const teamCount = Number.isInteger(minTeams) ? minTeams : 0;
+        const minRounds = Math.max(2, Math.max(2, teamCount) - 1);
+        const maxRounds = Math.max(10, minRounds);
+        roundsInput.min = minRounds;
+        roundsInput.max = maxRounds;
+        roundsInput.dataset.minRounds = String(minRounds);
+        const safeRounds = Math.min(maxRounds, Math.max(minRounds, settings.rounds));
         roundsInput.value = safeRounds;
         roundsValue.textContent = safeRounds;
     }
@@ -1237,13 +1241,15 @@ async function updateMaxTeams(tournamentId, value) {
             : `${maxTeams} team maximum`;
     }
     if (roundsInput) {
-        roundsInput.min = 4;
-        roundsInput.max = 10;
-        if (Number(roundsInput.value) > 10) {
-            roundsInput.value = 10;
+        const minRounds = Number(roundsInput.dataset.minRounds || roundsInput.min || 2);
+        const maxRounds = Number(roundsInput.max || 10);
+        roundsInput.min = minRounds;
+        roundsInput.max = maxRounds;
+        if (Number(roundsInput.value) > maxRounds) {
+            roundsInput.value = maxRounds;
         }
-        if (Number(roundsInput.value) < 4) {
-            roundsInput.value = 4;
+        if (Number(roundsInput.value) < minRounds) {
+            roundsInput.value = minRounds;
         }
         const roundsValue = document.getElementById(`${tournamentId}-rounds-value`);
         if (roundsValue) {

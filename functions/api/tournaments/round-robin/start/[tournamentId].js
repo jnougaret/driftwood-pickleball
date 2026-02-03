@@ -57,7 +57,7 @@ function generateRoundRobinPairings(teamIds, rounds) {
         ids.push(null);
     }
     const n = ids.length;
-    const roundsToGenerate = Math.min(rounds, n - 1);
+    const roundsToGenerate = Math.max(1, rounds);
     const schedule = [];
     const fixed = ids[0];
     let rotating = ids.slice(1);
