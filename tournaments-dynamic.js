@@ -307,47 +307,86 @@ function createTournamentCard(tournament, type) {
         card.className = `tournament-card ${themeClass}`;
         card.innerHTML = `
             <div class="card-header">
-                <h3 class="text-2xl font-bold mb-2">${tournament.title}</h3>
-                <p class="text-gray-200">${tournament.location}</p>
+                <h3 id="${tournament.id}-results-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
+                <p id="${tournament.id}-results-location" class="text-gray-200">${tournament.location}</p>
             </div>
             <div class="card-body">
-                <div class="space-y-3 mb-6">
+                <div id="${tournament.id}-results-details-display" class="space-y-3 mb-6">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Format:</span>
-                        <span class="font-semibold">${tournament.format}</span>
+                        <span id="${tournament.id}-results-format" class="font-semibold">${tournament.format}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Skill Level:</span>
-                        <span class="font-semibold">${tournament.skillLevel}</span>
+                        <span id="${tournament.id}-results-skill" class="font-semibold">${tournament.skillLevel}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Entry Fee:</span>
-                        <span class="font-semibold text-ocean-blue">${tournament.entryFee}</span>
+                        <span id="${tournament.id}-results-fee" class="font-semibold text-ocean-blue">${tournament.entryFee}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Prize Split:</span>
-                        <span class="font-semibold">${tournament.prizeSplit}</span>
+                        <span id="${tournament.id}-results-prize" class="font-semibold">${tournament.prizeSplit}</span>
                     </div>
                 </div>
-                <button 
-                    onclick="toggleResults('${tournament.id}')"
-                    class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
-                >
-                    <span id="${tournament.id}-button-text">View Results</span>
-                </button>
-                <div id="${tournament.id}-results-admin-actions" class="hidden mt-3 flex items-center justify-end gap-2">
-                    <input
-                        id="${tournament.id}-results-photo-url"
-                        type="text"
-                        value="${tournament.photoUrl || ''}"
-                        placeholder="photos/winners-xxxx.jpg"
-                        class="w-56 px-2 py-2 border border-gray-300 rounded-lg text-sm"
-                    >
+                <div id="${tournament.id}-results-details-editor" class="hidden border border-gray-200 rounded-lg bg-white p-4 space-y-3 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Tournament title</label>
+                        <input id="${tournament.id}-results-edit-title" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.title}">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Date (ET)</label>
+                            <input id="${tournament.id}-results-edit-date" type="date" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.startDate || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Time (ET)</label>
+                            <input id="${tournament.id}-results-edit-time" type="time" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.startTimeEt || ''}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Location</label>
+                        <input id="${tournament.id}-results-edit-location" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.location || ''}">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Format</label>
+                            <select id="${tournament.id}-results-edit-format" class="w-full px-3 py-2 border border-gray-300 rounded">
+                                <option value="coed_doubles" ${tournament.formatType !== 'mixed_doubles' ? 'selected' : ''}>Coed Doubles</option>
+                                <option value="mixed_doubles" ${tournament.formatType === 'mixed_doubles' ? 'selected' : ''}>Mixed Doubles</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Skill cap</label>
+                            <input id="${tournament.id}-results-edit-skill" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" value="${Number.isFinite(tournament.skillLevelCap) ? tournament.skillLevelCap : ''}">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Entry fee (per player)</label>
+                            <input id="${tournament.id}-results-edit-fee" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" value="${Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : ''}">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Prize split</label>
+                            <input id="${tournament.id}-results-edit-prize" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.prizeSplit || ''}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Photo path</label>
+                        <input id="${tournament.id}-results-edit-photo" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.photoUrl || ''}" placeholder="photos/winners-xxxx.jpg">
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                        <button onclick="saveResultsDetails('${tournament.id}')" class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-ocean-teal transition">Save Details</button>
+                        <button onclick="toggleResultsDetailsEditor('${tournament.id}', false)" class="bg-white border border-gray-300 text-ocean-blue px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition">Cancel</button>
+                    </div>
+                </div>
+                <div id="${tournament.id}-results-admin-actions" class="hidden mb-3 flex items-center justify-end gap-2">
                     <button
-                        onclick="saveResultsPhotoPath('${tournament.id}')"
+                        id="${tournament.id}-results-edit-details-button"
+                        onclick="toggleResultsDetailsEditor('${tournament.id}')"
                         class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
                     >
-                        Save Photo
+                        Edit Details
                     </button>
                     <button
                         onclick="archiveResultsCard('${tournament.id}')"
@@ -362,6 +401,12 @@ function createTournamentCard(tournament, type) {
                         Delete
                     </button>
                 </div>
+                <button 
+                    onclick="toggleResults('${tournament.id}')"
+                    class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
+                >
+                    <span id="${tournament.id}-button-text">View Results</span>
+                </button>
             </div>
             
             <!-- Expandable Results -->
@@ -452,6 +497,7 @@ function refreshAdminDetailEditors() {
         } else {
             resultsActions.classList.add('hidden');
             resultsActions.classList.remove('flex');
+            toggleResultsDetailsEditor(tournament.id, false);
         }
     });
 }
@@ -459,6 +505,9 @@ function refreshAdminDetailEditors() {
 function updateTournamentInStore(updatedTournament) {
     if (!updatedTournament || !updatedTournament.id) return;
     tournamentStore.upcoming = getUpcomingTournaments().map(tournament => (
+        tournament.id === updatedTournament.id ? { ...tournament, ...updatedTournament } : tournament
+    ));
+    tournamentStore.results = getResultsTournaments().map(tournament => (
         tournament.id === updatedTournament.id ? { ...tournament, ...updatedTournament } : tournament
     ));
 }
@@ -478,6 +527,144 @@ function updateTournamentCardDisplay(tournament) {
     if (formatEl) formatEl.textContent = formatFormatType(tournament.formatType);
     if (skillEl) skillEl.textContent = formatSkillText(tournament.skillLevelCap);
     if (feeEl) feeEl.textContent = formatEntryFeeText(tournament.entryFeeAmount);
+}
+
+function findResultsTournament(tournamentId) {
+    return getResultsTournaments().find(tournament => tournament.id === tournamentId) || null;
+}
+
+function updateResultsCardDisplay(tournament) {
+    const titleEl = document.getElementById(`${tournament.id}-results-title`);
+    const locationEl = document.getElementById(`${tournament.id}-results-location`);
+    const formatEl = document.getElementById(`${tournament.id}-results-format`);
+    const skillEl = document.getElementById(`${tournament.id}-results-skill`);
+    const feeEl = document.getElementById(`${tournament.id}-results-fee`);
+    const prizeEl = document.getElementById(`${tournament.id}-results-prize`);
+    const photoWrap = document.getElementById(`${tournament.id}-photo-wrap`);
+    const photoEl = document.getElementById(`${tournament.id}-photo`);
+
+    if (titleEl) titleEl.textContent = tournament.title;
+    if (locationEl) locationEl.textContent = tournament.location || 'Location TBD';
+    if (formatEl) formatEl.textContent = formatFormatType(tournament.formatType);
+    if (skillEl) skillEl.textContent = formatSkillText(tournament.skillLevelCap);
+    if (feeEl) feeEl.textContent = formatEntryFeeText(tournament.entryFeeAmount);
+    if (prizeEl) prizeEl.textContent = tournament.prizeSplit || '50% - 30% - 20%';
+    if (photoWrap) {
+        if (tournament.photoUrl) photoWrap.classList.remove('hidden');
+        else photoWrap.classList.add('hidden');
+    }
+    if (photoEl && tournament.photoUrl) {
+        photoEl.src = tournament.photoUrl;
+    }
+}
+
+function toggleResultsDetailsEditor(tournamentId, forceOpen = null) {
+    const display = document.getElementById(`${tournamentId}-results-details-display`);
+    const editor = document.getElementById(`${tournamentId}-results-details-editor`);
+    const button = document.getElementById(`${tournamentId}-results-edit-details-button`);
+    const tournament = findResultsTournament(tournamentId);
+    if (!display || !editor || !button || !tournament) return;
+    if (!(window.authProfile && window.authProfile.isAdmin)) return;
+
+    const shouldOpen = forceOpen === null ? editor.classList.contains('hidden') : Boolean(forceOpen);
+    if (shouldOpen) {
+        const titleInput = document.getElementById(`${tournamentId}-results-edit-title`);
+        const dateInput = document.getElementById(`${tournamentId}-results-edit-date`);
+        const timeInput = document.getElementById(`${tournamentId}-results-edit-time`);
+        const locationInput = document.getElementById(`${tournamentId}-results-edit-location`);
+        const formatInput = document.getElementById(`${tournamentId}-results-edit-format`);
+        const skillInput = document.getElementById(`${tournamentId}-results-edit-skill`);
+        const feeInput = document.getElementById(`${tournamentId}-results-edit-fee`);
+        const prizeInput = document.getElementById(`${tournamentId}-results-edit-prize`);
+        const photoInput = document.getElementById(`${tournamentId}-results-edit-photo`);
+        if (titleInput) titleInput.value = tournament.title || '';
+        if (dateInput) dateInput.value = tournament.startDate || '';
+        if (timeInput) timeInput.value = tournament.startTimeEt || '';
+        if (locationInput) locationInput.value = tournament.location || '';
+        if (formatInput) formatInput.value = tournament.formatType === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles';
+        if (skillInput) skillInput.value = Number.isFinite(tournament.skillLevelCap) ? tournament.skillLevelCap : '';
+        if (feeInput) feeInput.value = Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : '';
+        if (prizeInput) prizeInput.value = tournament.prizeSplit || '';
+        if (photoInput) photoInput.value = tournament.photoUrl || '';
+        editor.classList.remove('hidden');
+        display.classList.add('hidden');
+        button.textContent = 'Close Editor';
+        return;
+    }
+
+    editor.classList.add('hidden');
+    display.classList.remove('hidden');
+    button.textContent = 'Edit Details';
+}
+
+async function saveResultsDetails(tournamentId) {
+    if (!(window.authProfile && window.authProfile.isAdmin)) return;
+    const tournament = findResultsTournament(tournamentId);
+    if (!tournament) return;
+
+    const titleInput = document.getElementById(`${tournamentId}-results-edit-title`);
+    const dateInput = document.getElementById(`${tournamentId}-results-edit-date`);
+    const timeInput = document.getElementById(`${tournamentId}-results-edit-time`);
+    const locationInput = document.getElementById(`${tournamentId}-results-edit-location`);
+    const formatInput = document.getElementById(`${tournamentId}-results-edit-format`);
+    const skillInput = document.getElementById(`${tournamentId}-results-edit-skill`);
+    const feeInput = document.getElementById(`${tournamentId}-results-edit-fee`);
+    const prizeInput = document.getElementById(`${tournamentId}-results-edit-prize`);
+    const photoInput = document.getElementById(`${tournamentId}-results-edit-photo`);
+    if (!titleInput || !dateInput || !timeInput || !locationInput || !formatInput || !skillInput || !feeInput || !prizeInput || !photoInput) {
+        return;
+    }
+
+    const payload = {
+        title: titleInput.value.trim(),
+        startDate: dateInput.value || null,
+        startTimeEt: timeInput.value || null,
+        location: locationInput.value.trim(),
+        formatType: formatInput.value === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles',
+        skillLevelCap: skillInput.value === '' ? null : Number(skillInput.value),
+        entryFeeAmount: feeInput.value === '' ? null : Number(feeInput.value),
+        prizeSplit: prizeInput.value.trim(),
+        photoUrl: photoInput.value.trim()
+    };
+
+    const button = document.getElementById(`${tournamentId}-results-edit-details-button`);
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Saving...';
+    }
+
+    try {
+        const token = await window.authUtils.getAuthToken();
+        const response = await fetch(`/api/tournaments/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.error || 'Failed to save details.');
+            return;
+        }
+        if (data.tournament) {
+            updateTournamentInStore(data.tournament);
+            updateResultsCardDisplay(data.tournament);
+        }
+        toggleResultsDetailsEditor(tournamentId, false);
+    } catch (error) {
+        console.error('Save results details error:', error);
+        alert('Failed to save details.');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            const editor = document.getElementById(`${tournamentId}-results-details-editor`);
+            button.textContent = editor && !editor.classList.contains('hidden')
+                ? 'Close Editor'
+                : 'Edit Details';
+        }
+    }
 }
 
 function toggleTournamentDetailsEditor(tournamentId, forceOpen = null) {
@@ -650,31 +837,6 @@ async function manageTournament(tournamentId, action, extra = {}) {
 
 async function archiveResultsCard(tournamentId) {
     await manageTournament(tournamentId, 'archive');
-}
-
-async function saveResultsPhotoPath(tournamentId) {
-    const input = document.getElementById(`${tournamentId}-results-photo-url`);
-    if (!input) return;
-    const photoUrl = input.value.trim();
-    const ok = await manageTournament(tournamentId, 'set_photo', { photoUrl });
-    if (ok) {
-        const updated = getResultsTournaments().find(t => t.id === tournamentId);
-        const photoWrap = document.getElementById(`${tournamentId}-photo-wrap`);
-        const photoEl = document.getElementById(`${tournamentId}-photo`);
-        if (photoWrap) {
-            if (photoUrl) {
-                photoWrap.classList.remove('hidden');
-            } else {
-                photoWrap.classList.add('hidden');
-            }
-        }
-        if (photoEl && photoUrl) {
-            photoEl.src = photoUrl;
-        }
-        if (updated) {
-            updated.photoUrl = photoUrl || null;
-        }
-    }
 }
 
 async function deleteTournamentCard(tournamentId) {

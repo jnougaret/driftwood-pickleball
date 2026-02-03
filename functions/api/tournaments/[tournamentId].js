@@ -183,6 +183,10 @@ export async function onRequestPost({ request, env, params }) {
     const entryFeeAmount = body.entryFeeAmount === null || body.entryFeeAmount === undefined || body.entryFeeAmount === ''
         ? null
         : Number(body.entryFeeAmount);
+    const prizeSplit = String(body.prizeSplit || '').trim();
+    const photoUrl = body.photoUrl === null || body.photoUrl === undefined
+        ? null
+        : String(body.photoUrl).trim();
 
     if (!title) return jsonResponse({ error: 'Title is required' }, 400);
     if (!location) return jsonResponse({ error: 'Location is required' }, 400);
@@ -198,17 +202,22 @@ export async function onRequestPost({ request, env, params }) {
     if (entryFeeAmount !== null && (!Number.isFinite(entryFeeAmount) || entryFeeAmount < 0 || entryFeeAmount > 1000)) {
         return jsonResponse({ error: 'entryFeeAmount must be a number between 0 and 1000' }, 400);
     }
+    if (prizeSplit && prizeSplit.length > 120) {
+        return jsonResponse({ error: 'prizeSplit is too long' }, 400);
+    }
+    if (photoUrl !== null && photoUrl.length > 255) {
+        return jsonResponse({ error: 'photoUrl is too long' }, 400);
+    }
 
     const existing = await getTournament(env, tournamentId);
     if (!existing) {
         return jsonResponse({ error: 'Tournament not found' }, 404);
     }
-    if (existing.status === 'completed') {
-        return jsonResponse({ error: 'Only upcoming tournaments can be edited' }, 400);
-    }
-    const mode = await getTournamentMode(env, tournamentId);
-    if (mode !== 'registration') {
-        return jsonResponse({ error: 'Cannot edit details after tournament has started' }, 400);
+    if (existing.status !== 'completed') {
+        const mode = await getTournamentMode(env, tournamentId);
+        if (mode !== 'registration') {
+            return jsonResponse({ error: 'Cannot edit details after tournament has started' }, 400);
+        }
     }
 
     try {
@@ -224,6 +233,7 @@ export async function onRequestPost({ request, env, params }) {
     const startTimeDisplay = formatStartLine(startDate, startTimeEt, existing.start_time);
     const skillLevel = formatSkillLevel(skillLevelCap, existing.skill_level);
     const entryFee = formatEntryFee(entryFeeAmount, existing.entry_fee);
+    const prizeSplitValue = prizeSplit || existing.prize_split || '50% - 30% - 20%';
 
     try {
         await env.DB.prepare(
@@ -240,6 +250,8 @@ export async function onRequestPost({ request, env, params }) {
                  skill_level = ?,
                  entry_fee_amount = ?,
                  entry_fee = ?,
+                 prize_split = ?,
+                 photo_url = ?,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`
         ).bind(
@@ -254,6 +266,8 @@ export async function onRequestPost({ request, env, params }) {
             skillLevel,
             entryFeeAmount,
             entryFee,
+            prizeSplitValue,
+            photoUrl === '' ? null : photoUrl,
             tournamentId
         ).run();
 
