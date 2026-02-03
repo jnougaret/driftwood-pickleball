@@ -23,6 +23,25 @@ async function getClerkUser(userId, env) {
     }
 }
 
+async function ensureAdminAllowlistTable(env) {
+    await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS admin_allowlist (
+            email TEXT PRIMARY KEY,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+    ).run();
+}
+
+async function isAllowlistedAdminEmail(env, email) {
+    if (!email) return false;
+    await ensureAdminAllowlistTable(env);
+    const row = await env.DB.prepare(
+        'SELECT email FROM admin_allowlist WHERE LOWER(email) = LOWER(?)'
+    ).bind(email).first();
+    return Boolean(row);
+}
+
 // GET - Retrieve user profile
 export async function onRequestGet({ request, env }) {
     // Verify authentication
@@ -47,6 +66,20 @@ export async function onRequestGet({ request, env }) {
                 status: 404,
                 headers: { 'Content-Type': 'application/json' }
             });
+        }
+
+        const masterEmail = (env.MASTER_ADMIN_EMAIL || '').toLowerCase();
+        const profileEmail = (result.email || '').toLowerCase();
+        const shouldBeAdmin = Boolean(
+            profileEmail &&
+            (profileEmail === masterEmail || await isAllowlistedAdminEmail(env, profileEmail))
+        );
+
+        if (shouldBeAdmin && !result.is_admin) {
+            await env.DB.prepare(
+                'UPDATE users SET is_admin = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            ).bind(result.id).run();
+            result.is_admin = 1;
         }
 
         // Return user profile
@@ -110,6 +143,7 @@ async function handleProfileUpdate(request, env) {
         });
     }
     const isMasterAdmin = env.MASTER_ADMIN_EMAIL && email.toLowerCase() === env.MASTER_ADMIN_EMAIL.toLowerCase();
+    const isAllowlistedAdmin = await isAllowlistedAdminEmail(env, email.toLowerCase());
 
     // Parse request body
     let body;
@@ -151,7 +185,7 @@ async function handleProfileUpdate(request, env) {
             duprId || null,
             doublesRating || null,
             singlesRating || null,
-            isMasterAdmin ? 1 : 0
+            (isMasterAdmin || isAllowlistedAdmin) ? 1 : 0
         ).run();
 
         if (duprId === null) {

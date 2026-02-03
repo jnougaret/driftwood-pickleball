@@ -189,3 +189,13 @@ CREATE TABLE admin_actions (
 CREATE INDEX idx_admin_actions_admin ON admin_actions(admin_id);
 CREATE INDEX idx_admin_actions_created ON admin_actions(created_at);
 CREATE INDEX idx_admin_actions_tournament ON admin_actions(tournament_id);
+
+-- Admin allowlist: emails granted admin before first sign-in/profile creation
+CREATE TABLE admin_allowlist (
+  email TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE INDEX idx_admin_allowlist_created_at ON admin_allowlist(created_at);

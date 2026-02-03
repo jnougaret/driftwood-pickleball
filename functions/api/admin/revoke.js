@@ -19,6 +19,16 @@ async function getUserByEmail(env, email) {
     ).bind(email).first();
 }
 
+async function ensureAdminAllowlistTable(env) {
+    await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS admin_allowlist (
+            email TEXT PRIMARY KEY,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+    ).run();
+}
+
 export async function onRequestPost({ request, env }) {
     const auth = await verifyClerkToken(request);
     if (auth.error) {
@@ -43,7 +53,7 @@ export async function onRequestPost({ request, env }) {
         return jsonResponse({ error: 'Invalid JSON body' }, 400);
     }
 
-    const targetEmail = body.email;
+    const targetEmail = String(body.email || '').trim().toLowerCase();
     if (!targetEmail) {
         return jsonResponse({ error: 'Email is required' }, 400);
     }
@@ -52,9 +62,15 @@ export async function onRequestPost({ request, env }) {
         return jsonResponse({ error: 'Cannot revoke master admin' }, 400);
     }
 
+    await ensureAdminAllowlistTable(env);
+
+    await env.DB.prepare(
+        'DELETE FROM admin_allowlist WHERE LOWER(email) = LOWER(?)'
+    ).bind(targetEmail).run();
+
     const target = await getUserByEmail(env, targetEmail);
     if (!target) {
-        return jsonResponse({ error: 'User not found' }, 404);
+        return jsonResponse({ success: true });
     }
 
     await env.DB.prepare(

@@ -571,15 +571,19 @@
 
                 list.innerHTML = admins.map(admin => {
                     const email = admin.email || '';
+                    const hasAccount = Number(admin.has_account || 0) === 1;
                     const masterEmail = (window.masterAdminEmail || '').toLowerCase();
                     const isMaster = masterEmail && email.toLowerCase() === masterEmail;
                     const revokeButton = isMaster
                         ? '<span class="text-xs text-gray-400">Master</span>'
                         : `<button onclick="revokeAdmin('${email}')" class="text-xs text-red-600 hover:text-red-800">Revoke</button>`;
+                    const label = hasAccount
+                        ? (admin.display_name ? `${admin.display_name} (${email})` : email)
+                        : `${email} (pending sign-in)`;
 
                     return `
                         <div class="flex items-center justify-between p-3 text-sm text-gray-700">
-                            <span>${admin.display_name ? `${admin.display_name} (${email})` : email}</span>
+                            <span>${label}</span>
                             ${revokeButton}
                         </div>
                     `;
