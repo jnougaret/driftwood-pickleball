@@ -208,7 +208,7 @@ function createTournamentCard(tournament, type) {
                 <button
                     id="${tournament.id}-edit-details-button"
                     onclick="toggleTournamentDetailsEditor('${tournament.id}')"
-                    class="hidden block w-fit ml-auto mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-ocean-blue hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+                    class="hidden block w-fit ml-auto mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-semibold transition"
                 >
                     Edit Details
                 </button>
@@ -1873,6 +1873,7 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
                 <div class="space-y-4">${matchesHtml || `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>`}</div>
                 ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mt-4 mb-2">Bronze Match</div>` : ''}
                 ${bronzeHtml}
+                ${archiveButton}
             </div>
         `;
     }).join('');
