@@ -2897,8 +2897,8 @@ async function loadTournamentBracket(tournamentId) {
 }
 
 function formatSingleGameScore(score1, score2) {
-    if (!Number.isInteger(score1) || !Number.isInteger(score2)) return 'TBD';
-    return `${score1}-${score2}`;
+    if (!Number.isInteger(score1) || !Number.isInteger(score2)) return null;
+    return { team1: String(score1), team2: String(score2) };
 }
 
 function formatBestOfThreeScore(score, teamSlot) {
@@ -2920,8 +2920,20 @@ function playoffScoreLabel(score, teamSlot, bestOfThreeEnabled) {
     if (bestOfThreeEnabled) {
         return formatBestOfThreeScore(score, teamSlot);
     }
-    if (teamSlot === 1) return formatSingleGameScore(score.game1_score1, score.game1_score2);
-    return formatSingleGameScore(score.game1_score2, score.game1_score1);
+    const single = formatSingleGameScore(score.game1_score1, score.game1_score2);
+    if (!single) return 'TBD';
+    return teamSlot === 1 ? single.team1 : single.team2;
+}
+
+function formatTeamFirstNames(teamName) {
+    const value = String(teamName || '').trim();
+    if (!value || value.toUpperCase() === 'TBD') return 'TBD';
+    const players = value.split('/').map(part => part.trim()).filter(Boolean);
+    if (!players.length) return value;
+    return players.map(player => {
+        const first = player.split(/\s+/).filter(Boolean)[0];
+        return first || player;
+    }).join(' / ');
 }
 
 function renderPlayoffResultsBracket(tournamentId, playoff) {
@@ -2942,11 +2954,16 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
         const roundNumber = roundIndex + 1;
         const isFinal = roundNumber === totalRounds;
         const matchesHtml = roundMatches.map(match => {
-            const team1 = teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD');
-            const team2 = teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD');
+            const team1 = formatTeamFirstNames(teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD'));
+            const team2 = formatTeamFirstNames(teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD'));
             const score = match.score || null;
+            const matchClass = isFinal && match.matchNumber === 1 ? 'bracket-match gold' : 'bracket-match';
+            const label = isFinal && match.matchNumber === 1
+                ? '<div class="text-xs font-bold text-center mb-2" style="color: #d4a574;">🥇 GOLD MATCH</div>'
+                : '';
             return `
-                <div class="bracket-match">
+                <div class="${matchClass}">
+                    ${label}
                     <div class="bracket-team"><span>${team1}</span><span>${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span></div>
                     <div class="bracket-team"><span>${team2}</span><span>${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span></div>
                 </div>
@@ -2962,10 +2979,10 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             }));
             const losers = semiMatches.map(match => playoffMatchLoser(match, match.score, false, false, totalRounds - 1));
             const bronzeScore = scoreMap.get(`${totalRounds}-2`) || null;
-            const bronzeTeam1 = teamsMap.get(losers[0]) || 'TBD';
-            const bronzeTeam2 = teamsMap.get(losers[1]) || 'TBD';
+            const bronzeTeam1 = formatTeamFirstNames(teamsMap.get(losers[0]) || 'TBD');
+            const bronzeTeam2 = formatTeamFirstNames(teamsMap.get(losers[1]) || 'TBD');
             bronzeHtml = `
-                <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">BRONZE MATCH</div>
+                <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                 <div class="bracket-match bronze">
                     <div class="bracket-team"><span>${bronzeTeam1}</span><span>${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span></div>
                     <div class="bracket-team"><span>${bronzeTeam2}</span><span>${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span></div>
@@ -3088,11 +3105,11 @@ function renderBracket(tournamentId, data) {
             html += `
                 <div class="bracket-match">
                     <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
-                        <span>${match.team1}</span>
+                        <span>${formatTeamFirstNames(match.team1)}</span>
                         <span>${match.team1Score}</span>
                     </div>
                     <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
-                        <span>${match.team2}</span>
+                        <span>${formatTeamFirstNames(match.team2)}</span>
                         <span>${match.team2Score}</span>
                     </div>
                 </div>
@@ -3109,11 +3126,11 @@ function renderBracket(tournamentId, data) {
             html += `
                 <div class="bracket-match">
                     <div class="bracket-team ${winner === match.team1 ? 'winner' : ''}">
-                        <span>${match.team1}</span>
+                        <span>${formatTeamFirstNames(match.team1)}</span>
                         <span>${match.team1Score}</span>
                     </div>
                     <div class="bracket-team ${winner === match.team2 ? 'winner' : ''}">
-                        <span>${match.team2}</span>
+                        <span>${formatTeamFirstNames(match.team2)}</span>
                         <span>${match.team2Score}</span>
                     </div>
                 </div>
@@ -3131,11 +3148,11 @@ function renderBracket(tournamentId, data) {
             <div class="bracket-match gold">
                 <div class="text-xs font-bold text-center mb-2" style="color: #d4a574;">🥇 GOLD MATCH</div>
                 <div class="bracket-team ${winner === goldMatch.team1 ? 'winner' : ''}">
-                    <span>${goldMatch.team1}</span>
+                    <span>${formatTeamFirstNames(goldMatch.team1)}</span>
                     <span>${goldMatch.team1Score}</span>
                 </div>
                 <div class="bracket-team ${winner === goldMatch.team2 ? 'winner' : ''}">
-                    <span>${goldMatch.team2}</span>
+                    <span>${formatTeamFirstNames(goldMatch.team2)}</span>
                     <span>${goldMatch.team2Score}</span>
                 </div>
             </div>
@@ -3148,11 +3165,11 @@ function renderBracket(tournamentId, data) {
             <div class="bracket-match bronze">
                 <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                 <div class="bracket-team ${winner === bronzeMatch.team1 ? 'winner' : ''}">
-                    <span>${bronzeMatch.team1}</span>
+                    <span>${formatTeamFirstNames(bronzeMatch.team1)}</span>
                     <span>${bronzeMatch.team1Score}</span>
                 </div>
                 <div class="bracket-team ${winner === bronzeMatch.team2 ? 'winner' : ''}">
-                    <span>${bronzeMatch.team2}</span>
+                    <span>${formatTeamFirstNames(bronzeMatch.team2)}</span>
                     <span>${bronzeMatch.team2Score}</span>
                 </div>
             </div>
