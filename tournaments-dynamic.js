@@ -161,7 +161,7 @@ function createTournamentCard(tournament, type) {
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Prize Split:</span>
-                        <span class="font-semibold">${tournament.prizeSplit}</span>
+                        <span id="${tournament.id}-prize-line" class="font-semibold">${tournament.prizeSplit}</span>
                     </div>
                 </div>
                 <div id="${tournament.id}-details-editor" class="hidden border border-gray-200 rounded-lg bg-white p-4 space-y-3 mb-6">
@@ -200,6 +200,10 @@ function createTournamentCard(tournament, type) {
                         <label class="block text-xs text-gray-600 mb-1">Entry fee (per player)</label>
                         <input id="${tournament.id}-edit-fee" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" value="${Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : ''}">
                     </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Prize split</label>
+                        <input id="${tournament.id}-edit-prize" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" value="${tournament.prizeSplit || ''}">
+                    </div>
                     <div class="flex items-center gap-2 pt-1">
                         <button onclick="saveTournamentDetails('${tournament.id}')" class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-ocean-teal transition">Save Details</button>
                         <button onclick="toggleTournamentDetailsEditor('${tournament.id}', false)" class="bg-white border border-gray-300 text-ocean-blue px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition">Cancel</button>
@@ -211,7 +215,14 @@ function createTournamentCard(tournament, type) {
                         onclick="copyTournament('${tournament.id}')"
                         class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-semibold transition"
                     >
-                        Copy Tournament
+                        Copy
+                    </button>
+                    <button
+                        id="${tournament.id}-delete-details-button"
+                        onclick="deleteUpcomingTournament('${tournament.id}')"
+                        class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Delete
                     </button>
                     <button
                         id="${tournament.id}-edit-details-button"
@@ -518,6 +529,7 @@ function updateTournamentCardDisplay(tournament) {
     const formatEl = document.getElementById(`${tournament.id}-format-line`);
     const skillEl = document.getElementById(`${tournament.id}-skill-line`);
     const feeEl = document.getElementById(`${tournament.id}-fee-line`);
+    const prizeEl = document.getElementById(`${tournament.id}-prize-line`);
 
     if (titleEl) titleEl.textContent = tournament.title;
     if (startLineEl) {
@@ -527,6 +539,7 @@ function updateTournamentCardDisplay(tournament) {
     if (formatEl) formatEl.textContent = formatFormatType(tournament.formatType);
     if (skillEl) skillEl.textContent = formatSkillText(tournament.skillLevelCap);
     if (feeEl) feeEl.textContent = formatEntryFeeText(tournament.entryFeeAmount);
+    if (prizeEl) prizeEl.textContent = tournament.prizeSplit || '50% - 30% - 20%';
 }
 
 function findResultsTournament(tournamentId) {
@@ -684,6 +697,7 @@ function toggleTournamentDetailsEditor(tournamentId, forceOpen = null) {
         const formatInput = document.getElementById(`${tournamentId}-edit-format`);
         const skillInput = document.getElementById(`${tournamentId}-edit-skill`);
         const feeInput = document.getElementById(`${tournamentId}-edit-fee`);
+        const prizeInput = document.getElementById(`${tournamentId}-edit-prize`);
         if (titleInput) titleInput.value = tournament.title || '';
         if (dateInput) dateInput.value = tournament.startDate || '';
         if (timeInput) timeInput.value = tournament.startTimeEt || '';
@@ -691,6 +705,7 @@ function toggleTournamentDetailsEditor(tournamentId, forceOpen = null) {
         if (formatInput) formatInput.value = tournament.formatType === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles';
         if (skillInput) skillInput.value = Number.isFinite(tournament.skillLevelCap) ? tournament.skillLevelCap : '';
         if (feeInput) feeInput.value = Number.isFinite(tournament.entryFeeAmount) ? tournament.entryFeeAmount : '';
+        if (prizeInput) prizeInput.value = tournament.prizeSplit || '';
         editor.classList.remove('hidden');
         display.classList.add('hidden');
         button.textContent = 'Close Editor';
@@ -714,7 +729,8 @@ async function saveTournamentDetails(tournamentId) {
     const formatInput = document.getElementById(`${tournamentId}-edit-format`);
     const skillInput = document.getElementById(`${tournamentId}-edit-skill`);
     const feeInput = document.getElementById(`${tournamentId}-edit-fee`);
-    if (!titleInput || !dateInput || !timeInput || !locationInput || !formatInput || !skillInput || !feeInput) {
+    const prizeInput = document.getElementById(`${tournamentId}-edit-prize`);
+    if (!titleInput || !dateInput || !timeInput || !locationInput || !formatInput || !skillInput || !feeInput || !prizeInput) {
         return;
     }
 
@@ -725,7 +741,8 @@ async function saveTournamentDetails(tournamentId) {
         location: locationInput.value.trim(),
         formatType: formatInput.value === 'mixed_doubles' ? 'mixed_doubles' : 'coed_doubles',
         skillLevelCap: skillInput.value === '' ? null : Number(skillInput.value),
-        entryFeeAmount: feeInput.value === '' ? null : Number(feeInput.value)
+        entryFeeAmount: feeInput.value === '' ? null : Number(feeInput.value),
+        prizeSplit: prizeInput.value.trim()
     };
 
     const button = document.getElementById(`${tournamentId}-edit-details-button`);
@@ -801,9 +818,15 @@ async function copyTournament(tournamentId) {
     } finally {
         if (copyButton) {
             copyButton.disabled = false;
-            copyButton.textContent = previousText || 'Copy Tournament';
+            copyButton.textContent = previousText || 'Copy';
         }
     }
+}
+
+async function deleteUpcomingTournament(tournamentId) {
+    const confirmed = window.confirm('Delete this tournament permanently? This cannot be undone.');
+    if (!confirmed) return;
+    await manageTournament(tournamentId, 'delete');
 }
 
 async function manageTournament(tournamentId, action, extra = {}) {
