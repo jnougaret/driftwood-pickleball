@@ -1,4 +1,4 @@
-import { verifyClerkToken } from '../../../_auth.js';
+import { verifyClerkToken } from '../../_auth.js';
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
