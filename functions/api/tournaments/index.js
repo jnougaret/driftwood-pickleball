@@ -190,9 +190,69 @@ async function ensureSeedData(env) {
     ]);
 }
 
+async function ensureAtLeastOneUpcoming(env) {
+    const existingUpcoming = await env.DB.prepare(
+        `SELECT COUNT(*) AS count
+         FROM tournaments
+         WHERE status IN ('upcoming', 'live')`
+    ).first();
+
+    if ((existingUpcoming?.count || 0) > 0) {
+        return;
+    }
+
+    const id = `tournament-${Date.now()}`;
+    try {
+        await env.DB.prepare(
+            `INSERT INTO tournaments (
+                id, title, start_time, start_date, start_time_et, timezone, location,
+                format, format_type, skill_level, skill_level_cap, entry_fee, entry_fee_amount,
+                prize_split, theme, status, display_order
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            id,
+            'Saturday Moneyball',
+            '2:00 PM - Date TBD',
+            null,
+            '14:00',
+            'America/New_York',
+            'The Picklr Westbrook',
+            'Coed Doubles',
+            'coed_doubles',
+            'TBD and below',
+            null,
+            '$15 per player',
+            15,
+            '50% - 30% - 20%',
+            'blue',
+            'upcoming',
+            999
+        ).run();
+    } catch (error) {
+        // Backward-compatible fallback for older schemas.
+        await env.DB.prepare(
+            `INSERT INTO tournaments (
+                id, title, start_time, location, format, skill_level, entry_fee, prize_split, theme, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            id,
+            'Saturday Moneyball',
+            '2:00 PM - Date TBD',
+            'The Picklr Westbrook',
+            'Coed Doubles',
+            'TBD and below',
+            '$15 per player',
+            '50% - 30% - 20%',
+            'blue',
+            'upcoming'
+        ).run();
+    }
+}
+
 export async function onRequestGet({ env }) {
     try {
         await ensureSeedData(env);
+        await ensureAtLeastOneUpcoming(env);
         let result;
         try {
             result = await env.DB.prepare(

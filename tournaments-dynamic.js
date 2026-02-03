@@ -205,13 +205,22 @@ function createTournamentCard(tournament, type) {
                         <button onclick="toggleTournamentDetailsEditor('${tournament.id}', false)" class="bg-white border border-gray-300 text-ocean-blue px-3 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition">Cancel</button>
                     </div>
                 </div>
-                <button
-                    id="${tournament.id}-edit-details-button"
-                    onclick="toggleTournamentDetailsEditor('${tournament.id}')"
-                    class="hidden block w-fit ml-auto mb-4 bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-semibold transition"
-                >
-                    Edit Details
-                </button>
+                <div class="hidden mb-4 ml-auto w-fit items-center gap-2" id="${tournament.id}-admin-edit-actions">
+                    <button
+                        id="${tournament.id}-copy-details-button"
+                        onclick="copyTournament('${tournament.id}')"
+                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Copy Tournament
+                    </button>
+                    <button
+                        id="${tournament.id}-edit-details-button"
+                        onclick="toggleTournamentDetailsEditor('${tournament.id}')"
+                        class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-semibold transition"
+                    >
+                        Edit Details
+                    </button>
+                </div>
                 <button
                     onclick="toggleRegistration('${tournament.id}')"
                     class="tournament-action-button block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
@@ -395,12 +404,14 @@ function checkTournamentStatus() {
 function refreshAdminDetailEditors() {
     const isAdmin = Boolean(window.authProfile && window.authProfile.isAdmin);
     getUpcomingTournaments().forEach(tournament => {
-        const editButton = document.getElementById(`${tournament.id}-edit-details-button`);
-        if (!editButton) return;
+        const actionRow = document.getElementById(`${tournament.id}-admin-edit-actions`);
+        if (!actionRow) return;
         if (isAdmin) {
-            editButton.classList.remove('hidden');
+            actionRow.classList.remove('hidden');
+            actionRow.classList.add('flex');
         } else {
-            editButton.classList.add('hidden');
+            actionRow.classList.add('hidden');
+            actionRow.classList.remove('flex');
             toggleTournamentDetailsEditor(tournament.id, false);
         }
     });
@@ -527,6 +538,44 @@ async function saveTournamentDetails(tournamentId) {
             button.textContent = editor && !editor.classList.contains('hidden')
                 ? 'Close Editor'
                 : 'Edit Details';
+        }
+    }
+}
+
+async function copyTournament(tournamentId) {
+    if (!(window.authProfile && window.authProfile.isAdmin)) return;
+    const copyButton = document.getElementById(`${tournamentId}-copy-details-button`);
+    const previousText = copyButton ? copyButton.textContent : '';
+    if (copyButton) {
+        copyButton.disabled = true;
+        copyButton.textContent = 'Copying...';
+    }
+
+    try {
+        const token = await window.authUtils.getAuthToken();
+        const response = await fetch(`/api/tournaments/copy/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const payload = await readJsonSafe(response);
+        if (!response.ok) {
+            alert((payload && payload.error) || 'Failed to copy tournament.');
+            return;
+        }
+
+        await loadTournaments();
+        renderUpcomingTournaments();
+        renderResults();
+        refreshAdminDetailEditors();
+    } catch (error) {
+        console.error('Copy tournament error:', error);
+        alert('Failed to copy tournament.');
+    } finally {
+        if (copyButton) {
+            copyButton.disabled = false;
+            copyButton.textContent = previousText || 'Copy Tournament';
         }
     }
 }
