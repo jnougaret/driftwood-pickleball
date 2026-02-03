@@ -2957,6 +2957,13 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             const team1 = formatTeamFirstNames(teamsMap.get(match.team1Id) || (match.team1Id ? 'Team' : 'TBD'));
             const team2 = formatTeamFirstNames(teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD'));
             const score = match.score || null;
+            const winnerId = playoffMatchWinner(
+                { team1Id: match.team1Id, team2Id: match.team2Id },
+                score,
+                isFinal,
+                bestOfThree,
+                roundNumber
+            );
             const matchClass = isFinal && match.matchNumber === 1 ? 'bracket-match gold' : 'bracket-match';
             const label = isFinal && match.matchNumber === 1
                 ? '<div class="text-xs font-bold text-center mb-2" style="color: #d4a574;">🥇 GOLD MATCH</div>'
@@ -2964,8 +2971,8 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             return `
                 <div class="${matchClass}">
                     ${label}
-                    <div class="bracket-team"><span>${team1}</span><span>${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span></div>
-                    <div class="bracket-team"><span>${team2}</span><span>${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span></div>
+                    <div class="bracket-team ${winnerId === match.team1Id ? 'winner' : ''}"><span>${team1}</span><span>${playoffScoreLabel(score, 1, isFinal && bestOfThree)}</span></div>
+                    <div class="bracket-team ${winnerId === match.team2Id ? 'winner' : ''}"><span>${team2}</span><span>${playoffScoreLabel(score, 2, isFinal && bestOfThree)}</span></div>
                 </div>
             `;
         }).join('');
@@ -2981,11 +2988,18 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
             const bronzeScore = scoreMap.get(`${totalRounds}-2`) || null;
             const bronzeTeam1 = formatTeamFirstNames(teamsMap.get(losers[0]) || 'TBD');
             const bronzeTeam2 = formatTeamFirstNames(teamsMap.get(losers[1]) || 'TBD');
+            const bronzeWinnerId = playoffMatchWinner(
+                { team1Id: losers[0] || null, team2Id: losers[1] || null },
+                bronzeScore,
+                true,
+                bestOfThreeBronze,
+                totalRounds
+            );
             bronzeHtml = `
                 <div class="text-xs font-bold text-center mb-2" style="color: #cd7f32;">🥉 BRONZE MATCH</div>
                 <div class="bracket-match bronze">
-                    <div class="bracket-team"><span>${bronzeTeam1}</span><span>${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span></div>
-                    <div class="bracket-team"><span>${bronzeTeam2}</span><span>${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span></div>
+                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[0] ? 'winner' : ''}"><span>${bronzeTeam1}</span><span>${playoffScoreLabel(bronzeScore, 1, bestOfThreeBronze)}</span></div>
+                    <div class="bracket-team ${bronzeWinnerId && bronzeWinnerId === losers[1] ? 'winner' : ''}"><span>${bronzeTeam2}</span><span>${playoffScoreLabel(bronzeScore, 2, bestOfThreeBronze)}</span></div>
                 </div>
             `;
         }
