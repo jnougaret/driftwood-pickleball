@@ -2723,30 +2723,12 @@ async function addGuestPlayerQuick(tournamentId, teamId = null) {
     const displayName = (window.prompt('Guest player name:') || '').trim();
     if (!displayName) return;
 
-    const parseRating = (label) => {
-        const raw = window.prompt(`${label} (optional, 0-10):`, '');
-        if (raw === null) return null;
-        const text = String(raw).trim();
-        if (!text) return null;
-        const num = Number(text);
-        if (!Number.isFinite(num) || num < 0 || num > 10) {
-            alert(`${label} must be between 0 and 10.`);
-            return undefined;
-        }
-        return Number(num.toFixed(2));
-    };
-
-    const doublesRating = parseRating('Doubles rating');
-    if (doublesRating === undefined) return;
-    const singlesRating = parseRating('Singles rating');
-    if (singlesRating === undefined) return;
-
     try {
         await submitRegistration({
             action: 'add_guest',
             tournamentId,
             teamId,
-            extra: { displayName, doublesRating, singlesRating }
+            extra: { displayName }
         });
     } catch (error) {
         console.error('Add guest quick error:', error);
