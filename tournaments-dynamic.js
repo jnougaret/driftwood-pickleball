@@ -315,7 +315,7 @@ function createTournamentCard(tournament, type) {
                             onclick="registerTeam('${tournament.id}')"
                             class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
                         >
-                            Register As Team
+                            Register as Team
                         </button>
                         <p class="text-xs text-gray-500 mt-2 text-center" id="${tournament.id}-capacity-note">No capacity limit for now.</p>
                     </div>
@@ -1524,6 +1524,11 @@ async function archiveTournamentResults(tournamentId) {
     if (!user) return;
 
     try {
+        const playoff = await fetchPlayoffState(tournamentId);
+        if (!playoff || !playoff.isComplete) {
+            alert('Enter all required finals scores before archiving results.');
+            return;
+        }
         const token = await auth.getAuthToken();
         const response = await fetch(`/api/tournaments/archive/${tournamentId}`, {
             method: 'POST',
@@ -2222,11 +2227,13 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
 
         }
 
+        const canArchiveResults = Boolean(playoff && playoff.isComplete);
         const archiveButton = isFinal && isAdmin
             ? `
                 <button
-                    class="mt-4 w-full bg-ocean-blue text-white px-4 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                    class="mt-4 w-full border border-ocean-blue bg-white text-ocean-blue px-4 py-2 rounded-lg hover:bg-sand-50 transition font-semibold ${canArchiveResults ? '' : 'opacity-60 cursor-not-allowed'}"
                     onclick="archiveTournamentResults('${tournamentId}')"
+                    ${canArchiveResults ? '' : 'disabled'}
                 >
                     Archive Results
                 </button>
@@ -2591,7 +2598,7 @@ async function renderRegistrationList(tournamentId) {
                 actionButton.removeAttribute('onclick');
                 actionButton.disabled = true;
             } else {
-                actionButton.textContent = 'Register Team';
+                actionButton.textContent = 'Register as Team';
                 actionButton.setAttribute('onclick', `registerTeam('${tournamentId}')`);
                 actionButton.disabled = false;
             }
