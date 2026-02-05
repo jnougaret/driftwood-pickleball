@@ -58,12 +58,43 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
 1. **Set local secrets**
    - Open `.dev.vars`
    - Set `CLERK_SECRET_KEY=your_clerk_secret`
+   - Set `DUPR_CLIENT_KEY=your_dupr_client_key`
+   - Set `DUPR_CLIENT_SECRET=your_dupr_client_secret` (server-side only; not exposed to browser)
+   - Optional: `DUPR_ENV=uat` (or `prod`)
+   - Optional: `DUPR_TOKEN_URL=https://uat.mydupr.com/api/token` (or your DUPR-provided token URL)
+   - Optional: `DUPR_BASIC_INFO_URL=https://api.uat.dupr.gg/public/getBasicInfo` (or your DUPR-provided URL)
 
 2. **Run Pages dev server**
    ```bash
    wrangler pages dev . --port 8788
    ```
    - Site opens at `http://localhost:8788`
+
+### DUPR API token endpoint (server-side)
+
+`POST /api/dupr/token`
+
+- Requires Clerk auth and an admin user.
+- Uses `DUPR_CLIENT_KEY` + `DUPR_CLIENT_SECRET` from environment.
+- Calls DUPR auth endpoint and returns:
+  - `accessToken`
+  - `expiresIn`
+  - `expiresAt`
+- Reuses a valid in-memory token when available (`source: "cache"`).
+- Send `{ "forceRefresh": true }` in request body to bypass cache.
+- Rate limits:
+  - Standard token requests: 30 requests / 60 seconds per user.
+  - Forced refresh requests: 5 requests / 60 seconds per user.
+- Intended for backend workflows and testing, not public client use.
+
+### DUPR basic profile endpoint (server-side proxy)
+
+`POST /api/dupr/basic-info`
+
+- Requires Clerk auth.
+- Accepts `userToken` from DUPR iframe login event.
+- Calls DUPR basic info API using `Authorization: Bearer <userToken>`.
+- Returns DUPR profile payload for account-link enrichment.
 
 ## Deployment to Cloudflare Pages
 

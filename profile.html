@@ -234,9 +234,41 @@
         </div>
     </section>
 
+    <div id="dupr-link-modal" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black/50" onclick="closeDuprLinkModal()"></div>
+        <div class="relative z-10 mx-auto my-6 w-[95%] max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-ocean-blue">Link DUPR Account</h3>
+                <button
+                    type="button"
+                    onclick="closeDuprLinkModal()"
+                    class="text-gray-500 hover:text-gray-700 font-semibold"
+                >
+                    Close
+                </button>
+            </div>
+            <div class="h-[78vh] min-h-[520px]">
+                <iframe
+                    id="dupr-link-iframe"
+                    title="DUPR Login"
+                    class="w-full h-full border-0"
+                    src=""
+                    loading="lazy"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allow="clipboard-read; clipboard-write"
+                ></iframe>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script src="js/auth.js"></script>
     <script>
+        let DUPR_CONFIG = null;
+        let DUPR_ALLOWED_ORIGINS = new Set();
+        let duprLinkInProgress = false;
+        let duprMessageHandled = false;
+
         // Auth bootstrap (centralized in auth.js)
         document.addEventListener('DOMContentLoaded', async () => {
             try {
@@ -361,46 +393,184 @@
             updateAdminToolsVisibility();
         }
 
-        // Link DUPR account (placeholder - will use DUPR API in future)
-        async function linkDuprAccount() {
+        async function loadDuprConfig() {
+            if (DUPR_CONFIG && DUPR_CONFIG.linkUrl) {
+                return DUPR_CONFIG;
+            }
+            const response = await fetch('/api/dupr/config');
+            if (!response.ok) {
+                throw new Error('Failed to load DUPR configuration');
+            }
+            const config = await response.json();
+            if (!config || !config.linkUrl || !Array.isArray(config.allowedOrigins)) {
+                throw new Error('Invalid DUPR configuration');
+            }
+            DUPR_CONFIG = config;
+            DUPR_ALLOWED_ORIGINS = new Set(config.allowedOrigins);
+            return DUPR_CONFIG;
+        }
+
+        function openDuprLinkModal(linkUrl) {
+            const modal = document.getElementById('dupr-link-modal');
+            const iframe = document.getElementById('dupr-link-iframe');
+            if (!modal || !iframe) return;
+            duprLinkInProgress = true;
+            duprMessageHandled = false;
+            iframe.src = linkUrl;
+            modal.classList.remove('hidden');
+        }
+
+        function closeDuprLinkModal() {
+            const modal = document.getElementById('dupr-link-modal');
+            const iframe = document.getElementById('dupr-link-iframe');
+            if (!modal || !iframe) return;
+            modal.classList.add('hidden');
+            iframe.src = '';
+            duprLinkInProgress = false;
             const button = document.getElementById('link-dupr-button');
-            button.disabled = true;
-            button.textContent = 'Linking...';
+            if (button && (!window.duprLinked || window.duprLinked !== true)) {
+                button.disabled = false;
+                button.textContent = 'Link DUPR Account';
+            }
+        }
 
+        function normalizeNumber(value) {
+            if (value === null || value === undefined || value === '') return null;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        function extractRatings(stats) {
+            if (!stats) return { doublesRating: null, singlesRating: null };
+            let parsedStats = stats;
+            if (typeof stats === 'string') {
+                try {
+                    parsedStats = JSON.parse(stats);
+                } catch (error) {
+                    parsedStats = {};
+                }
+            }
+            return {
+                doublesRating: normalizeNumber(
+                    parsedStats.doublesRating
+                    ?? parsedStats.doubles_rating
+                    ?? parsedStats.doubles
+                    ?? parsedStats.doubleRating
+                ),
+                singlesRating: normalizeNumber(
+                    parsedStats.singlesRating
+                    ?? parsedStats.singles_rating
+                    ?? parsedStats.singles
+                    ?? parsedStats.singleRating
+                )
+            };
+        }
+
+        async function fetchDuprBasicInfo(userToken) {
+            if (!userToken || typeof userToken !== 'string') return null;
             try {
-                // PLACEHOLDER: Simulate DUPR API call
-                // In production, this will open DUPR OAuth flow or iframe
-                await new Promise(resolve => setTimeout(resolve, 1500));
-
-                // PLACEHOLDER: Mock DUPR data
-                const currentUser = window.authUtils.getCurrentUser();
-                const defaultName = currentUser.firstName && currentUser.lastName
-                    ? `${currentUser.firstName} ${currentUser.lastName}`
-                    : currentUser.emailAddresses[0].emailAddress.split('@')[0];
-                const mockDuprData = {
-                    displayName: defaultName,
-                    duprId: 'DUPR000000',
-                    doublesRating: 4.5,
-                    singlesRating: 4.0
-                };
-
-                // Save to database
-                const clerk = window.authUtils.getClerkInstance();
-                const token = await clerk.session.getToken();
-                const response = await fetch('/api/auth/profile', {
+                const token = await window.authUtils.getAuthToken();
+                const response = await fetch('/api/dupr/basic-info', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(mockDuprData)
+                    body: JSON.stringify({ userToken })
                 });
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data && data.profile ? data.profile : null;
+            } catch (error) {
+                return null;
+            }
+        }
 
-                if (response.ok) {
-                const result = await response.json();
-                showSuccess('DUPR account linked successfully!');
-                showDuprLinked(result.profile);
-                window.duprLinked = true;
+        function parseDuprMessagePayload(data) {
+            if (!data) return null;
+            if (typeof data === 'string') {
+                try {
+                    return JSON.parse(data);
+                } catch (error) {
+                    return null;
+                }
+            }
+            if (typeof data === 'object') return data;
+            return null;
+        }
+
+        async function saveLinkedDuprProfile(payload) {
+            const user = window.authUtils.getCurrentUser();
+            const fallbackName = user.firstName && user.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user.emailAddresses[0].emailAddress.split('@')[0];
+            const basicInfo = await fetchDuprBasicInfo(payload.userToken);
+            const payloadRatings = extractRatings(payload.stats);
+            const basicInfoRatings = extractRatings(basicInfo && (basicInfo.stats || basicInfo));
+            const doublesRating = basicInfoRatings.doublesRating ?? payloadRatings.doublesRating;
+            const singlesRating = basicInfoRatings.singlesRating ?? payloadRatings.singlesRating;
+            const duprId = (basicInfo && (basicInfo.duprId || basicInfo.dupr_id || basicInfo.id))
+                || payload.duprId
+                || payload.id
+                || payload.userId
+                || null;
+            const basicInfoName = basicInfo
+                ? (basicInfo.displayName
+                    || `${basicInfo.firstName || ''} ${basicInfo.lastName || ''}`.trim())
+                : '';
+            const payloadName = payload.displayName
+                || `${payload.firstName || ''} ${payload.lastName || ''}`.trim();
+            const displayName = basicInfoName || payloadName || fallbackName;
+
+            if (!duprId) {
+                throw new Error('DUPR did not return a DUPR ID');
+            }
+
+            const token = await window.authUtils.getAuthToken();
+            const response = await fetch('/api/auth/profile', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    displayName,
+                    duprId,
+                    doublesRating,
+                    singlesRating
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error || 'Failed to save DUPR profile');
+            }
+
+            const result = await response.json();
+            showDuprLinked(result.profile);
+            window.duprLinked = true;
+            showSuccess('DUPR account linked successfully!');
+        }
+
+        async function handleDuprMessage(event) {
+            if (!duprLinkInProgress || duprMessageHandled) return;
+            if (!DUPR_ALLOWED_ORIGINS.has(event.origin)) return;
+            const payload = parseDuprMessagePayload(event.data);
+            if (!payload || (!payload.userToken && !payload.duprId && !payload.id && !payload.userId)) {
+                return;
+            }
+
+            duprMessageHandled = true;
+            const button = document.getElementById('link-dupr-button');
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Linking...';
+            }
+
+            try {
+                await saveLinkedDuprProfile(payload);
+                closeDuprLinkModal();
+
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('return') && params.get('source') === 'registration') {
                     const returnUrl = params.get('return');
@@ -408,15 +578,30 @@
                         window.location.href = returnUrl;
                     }
                 }
-            } else {
-                    const error = await response.json();
-                    showError(error.error || 'Failed to link DUPR account');
+            } catch (error) {
+                console.error('Error handling DUPR response:', error);
+                showError(error.message || 'Failed to link DUPR account');
+                duprMessageHandled = false;
+                if (button) {
                     button.disabled = false;
                     button.textContent = 'Link DUPR Account';
                 }
+            }
+        }
+
+        window.addEventListener('message', handleDuprMessage, false);
+
+        // Link DUPR account using DUPR external-app iframe flow
+        async function linkDuprAccount() {
+            const button = document.getElementById('link-dupr-button');
+            button.disabled = true;
+            button.textContent = 'Opening DUPR...';
+            try {
+                const config = await loadDuprConfig();
+                openDuprLinkModal(config.linkUrl);
             } catch (error) {
-                console.error('Error linking DUPR:', error);
-                showError('Failed to link DUPR account');
+                console.error('Failed to initialize DUPR link:', error);
+                showError('Unable to initialize DUPR linking');
                 button.disabled = false;
                 button.textContent = 'Link DUPR Account';
             }
