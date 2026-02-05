@@ -315,7 +315,7 @@ function createTournamentCard(tournament, type) {
                             onclick="registerTeam('${tournament.id}')"
                             class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
                         >
-                            Register Team
+                            Register As Team
                         </button>
                         <p class="text-xs text-gray-500 mt-2 text-center" id="${tournament.id}-capacity-note">No capacity limit for now.</p>
                     </div>
@@ -454,7 +454,7 @@ function createTournamentCard(tournament, type) {
                 
                 <!-- Bracket -->
                 <div class="p-6 pb-0">
-                    <h4 class="text-xl font-bold text-ocean-blue mb-2">Tournament Bracket</h4>
+                    <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
                     <div id="${tournament.id}-bracket" class="bracket-container">
                         <!-- Bracket loads here -->
                     </div>
