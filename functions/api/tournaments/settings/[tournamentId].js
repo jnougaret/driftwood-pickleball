@@ -62,7 +62,7 @@ export async function onRequestGet({ env, params }) {
             playoffTeams: settings?.playoff_teams ?? null,
             playoffBestOfThree: settings?.playoff_best_of_three === 1,
             playoffBestOfThreeBronze: settings?.playoff_best_of_three_bronze === 1,
-            duprRequired: settings?.dupr_required === 1,
+            duprRequired: settings?.dupr_required === 1 || settings?.dupr_required === null || settings?.dupr_required === undefined,
             status: state?.status ?? 'registration'
         });
     } catch (error) {

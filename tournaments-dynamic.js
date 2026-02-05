@@ -159,7 +159,9 @@ function createTournamentCard(tournament, type) {
             <div class="card-header">
                 <h3 id="${tournament.id}-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
                 <p id="${tournament.id}-start-line" class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
-                <div id="${tournament.id}-dupr-badge" class="dupr-badge hidden">DUPR</div>
+                <div id="${tournament.id}-dupr-badge" class="dupr-badge hidden">
+                    <img src="dupr-logo.png" alt="DUPR" />
+                </div>
             </div>
             <div class="card-body">
                 <div id="${tournament.id}-details-display" class="space-y-3 mb-6">
@@ -304,19 +306,19 @@ function createTournamentCard(tournament, type) {
                                 >
                             </div>
                             <div>
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-sm font-medium text-gray-700">DUPR reported</span>
-                                    <span class="text-xs text-gray-500" id="${tournament.id}-dupr-required-value">Off</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    id="${tournament.id}-dupr-required"
-                                    data-enabled="false"
-                                    onclick="toggleDuprRequired('${tournament.id}')"
-                                    class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
-                                >
-                                    DUPR reported (Off)
-                                </button>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-700">DUPR reported</span>
+                                        <span class="text-xs text-gray-500" id="${tournament.id}-dupr-required-value">On</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        id="${tournament.id}-dupr-required"
+                                        data-enabled="true"
+                                        onclick="toggleDuprRequired('${tournament.id}')"
+                                        class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
+                                    >
+                                        DUPR reported (On)
+                                    </button>
                             </div>
                         </div>
                     </div>
@@ -1124,16 +1126,16 @@ function adminSettingsMarkup(tournamentId) {
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-sm font-medium text-gray-700">DUPR reported</span>
-                        <span class="text-xs text-gray-500" id="${tournamentId}-dupr-required-value">Off</span>
+                        <span class="text-xs text-gray-500" id="${tournamentId}-dupr-required-value">On</span>
                     </div>
                     <button
                         type="button"
                         id="${tournamentId}-dupr-required"
-                        data-enabled="false"
+                        data-enabled="true"
                         onclick="toggleDuprRequired('${tournamentId}')"
                         class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
                     >
-                        DUPR reported (Off)
+                        DUPR reported (On)
                     </button>
                 </div>
             </div>
@@ -1280,7 +1282,7 @@ async function loadAdminSettings(tournamentId) {
         console.error('Load settings error:', error);
         // Keep admin tools visible even if settings fetch fails.
         settingsContainer.classList.remove('hidden');
-        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6, duprRequired: false }, 6);
+        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6, duprRequired: true }, 6);
     }
 }
 
