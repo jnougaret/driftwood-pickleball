@@ -157,7 +157,7 @@ async function ensureSeedData(env) {
             'gold',
             'completed',
             20,
-            'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=1866706696&single=true&output=csv',
+            null,
             'photos/winners-jan24.jpg'
         ),
         env.DB.prepare(
@@ -184,7 +184,7 @@ async function ensureSeedData(env) {
             'blue',
             'completed',
             30,
-            'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv',
+            null,
             'photos/winners-jan10.jpeg'
         )
     ]);

@@ -116,11 +116,11 @@ ON CONFLICT(id) DO UPDATE SET
   live_end = COALESCE(tournaments.live_end, excluded.live_end);
 
 UPDATE tournaments
-SET csv_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=1866706696&single=true&output=csv',
+SET csv_url = NULL,
     photo_url = 'photos/winners-jan24.jpg'
 WHERE id = 'jan24' AND (csv_url IS NULL OR csv_url = '');
 
 UPDATE tournaments
-SET csv_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub?gid=0&single=true&output=csv',
+SET csv_url = NULL,
     photo_url = 'photos/winners-jan10.jpeg'
 WHERE id = 'jan10' AND (csv_url IS NULL OR csv_url = '');

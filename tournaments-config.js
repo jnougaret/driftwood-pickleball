@@ -3,12 +3,6 @@
 // Update this file to add/remove tournaments
 // ========================================
 
-// Base published spreadsheet URL (publish once, use forever!)
-const SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9t1AEOSPAWfObfkh4vn77k1eEgMXQFAY7HNTfmSAwYwe2pQiXUpRQshRWGBf4pettKOkn1F-2bFY/pub';
-
-// Helper function to generate CSV URL for a specific sheet
-const getSheetURL = (gid) => `${SHEET_BASE_URL}?gid=${gid}&single=true&output=csv`;
-
 const TOURNAMENTS = {
     upcoming: [
         {
@@ -38,7 +32,6 @@ const TOURNAMENTS = {
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
             theme: 'gold',
-            csvUrl: getSheetURL(1866706696),
             photoUrl: 'photos/winners-jan24.jpg'
         },
         {
@@ -50,7 +43,6 @@ const TOURNAMENTS = {
             entryFee: '$15 per player',
             prizeSplit: '50% - 30% - 20%',
             theme: 'blue',
-            csvUrl: getSheetURL(0),
             photoUrl: 'photos/winners-jan10.jpeg'
         }
         // Add more completed tournaments here
@@ -88,13 +80,11 @@ UPCOMING TOURNAMENT:
 
 RESULTS (COMPLETED TOURNAMENT):
 -------------------------------
-1. Create Google Sheet tab with results
-2. Copy gid field from url to update csvUrl
-3. Upload winner photo to photos/ folder
-4. Copy template below
-5. Update all fields
-6. Add to TOURNAMENTS.results array
-7. Push to GitHub - done!
+1. Upload winner photo to photos/ folder
+2. Copy template below
+3. Update all fields
+4. Add to TOURNAMENTS.results array
+5. Push to GitHub - done!
 
 {
     id: 'unique-id',                    // lowercase, no spaces (e.g., 'feb15')
@@ -105,7 +95,6 @@ RESULTS (COMPLETED TOURNAMENT):
     entryFee: '$15 per player',         // Cost
     prizeSplit: '50% - 30% - 20%',      // Prize distribution
     theme: 'blue',                      // 'blue' or 'gold'
-    csvUrl: getSheetURL(gid_VALUE),    // gid value in sheets url
     photoUrl: 'photos/winners-feb15.jpg' // Path to winner photo
 }
 

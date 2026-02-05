@@ -138,60 +138,26 @@ INSERT INTO tournaments (
 
 ### Adding Tournament Results
 
-1. **Create Google Sheet tab with results**
-   - Use this exact format:
-   
-   | Round          | Team 1      | Team 1 Score | Team 2       | Team 2 Score |
-   |----------------|-------------|--------------|--------------|--------------|
-   | QUARTERFINAL 1 | Joey/Joe C  | 11           | Aaron/Connor | 7            |
-   | QUARTERFINAL 2 | Carl/Ralph  | 11           | Scott/Karol  | 7            |
-   | ...            | ...         | ...          | ...          | ...          |
-   | SEMIFINAL 1    | Joey/Joe C  | 9            | Carl/Ralph   | 11           |
-   | SEMIFINAL 2    | Charlie/Nol | 11           | Sonu/Josh    | 7            |
-   | GOLD           | Sonu/Josh   | 15           | Ralph/Carl   | 9            |
-   | BRONZE         | Charlie/Nol | 15           | Joey/Joe C   | 8            |
+1. **Complete tournament scoring in the app**
+   - Enter round robin and playoff scores directly in the tournament UI.
+   - Use **Archive Results** on the finals card when complete.
 
-   **Note:** For best-of-3 finals, put all scores in one cell (e.g., "11, 0, 11")
-
-2. **Get the sheet's GID**
-   - Click on the sheet tab
-   - Look at the URL: `...#gid=123456789`
-   - Copy the number after `gid=`
-
-3. **Upload winner photo**
+2. **Upload winner photo**
    - Add photo to `photos/` folder
    - Name it: `winners-feb15.jpg`
 
-4. **Save results fields in D1**
-   - Update `csv_url` and `photo_url` on the completed tournament row
+3. **Save photo path in D1**
+   - Update `photo_url` on the completed tournament row
 
 ```sql
 UPDATE tournaments
 SET status = 'completed',
-    csv_url = 'https://docs.google.com/spreadsheets/d/e/.../pub?gid=123456789&single=true&output=csv',
     photo_url = 'photos/winners-feb15.jpg'
 WHERE id = 'feb15';
 ```
 
-5. Save, commit, and push to GitHub
-6. **Done!** Results appear automatically with expandable bracket.
-
-## Google Sheets Setup
-
-### One-Time Spreadsheet Publishing
-
-1. **Publish entire workbook** (do this once):
-   - File → Share → Publish to web
-   - Select: "Entire Document"
-   - Format: "Comma-separated values (.csv)"
-   - Click "Publish"
-   - Copy the URL
-
-2. **Store the published CSV URL in D1 (`csv_url`)**
-
-3. **Never republish again**
-   - Just create new sheet tabs
-   - Build CSV URLs with the tab GID (`.../pub?gid=<gid>&single=true&output=csv`)
+4. Save, commit, and push to GitHub
+5. **Done!** Results appear automatically with expandable bracket.
 
 ## Email Subscription Setup
 
@@ -199,11 +165,11 @@ The site includes email subscription via Google Forms.
 
 **Current setup:**
 - Form: https://forms.gle/91oPtqF8qwkMsM8f9
-- Responses go to linked Google Sheet
+- Responses are captured by the form destination
 - Entry ID: `427056354`
 
 **To send tournament announcements:**
-1. Open the Google Sheet with subscriber emails
+1. Open the subscriber export/list
 2. Copy all email addresses
 3. Compose email in Gmail
 4. BCC all addresses
@@ -244,7 +210,6 @@ The site uses two color schemes:
 ### Files You'll Update Regularly:
 - **D1 tournaments rows** - Add/remove/edit tournaments
 - **photos/** - Upload winner photos
-- **Google Sheets** - Add tournament results
 
 ### Files You'll Rarely Touch:
 - **index.html** - Only for About/Contact/Hero section changes
@@ -261,9 +226,9 @@ The site uses two color schemes:
 - Check browser console for errors (F12)
 
 ### Bracket not loading
-- Verify Google Sheet is published (entire document)
-- Check the `csv_url` value on the tournament row (must include the correct GID)
-- Ensure sheet tab has exact format (5 columns: Round, Team 1, Team 1 Score, Team 2, Team 2 Score)
+- Confirm playoff data exists in D1 for that tournament
+- Check browser console/network for `/api/tournaments/playoff/:id` errors
+- Verify tournament status is `completed` and `photo_url` path is valid (if set)
 
 ### Live button not switching
 - Check `liveStart` and `liveEnd` dates are correct
@@ -280,7 +245,6 @@ The site uses two color schemes:
 - **Tailwind CSS**: https://tailwindcss.com/docs
 - **JavaScript Basics**: https://developer.mozilla.org/en-US/docs/Web/JavaScript
 - **Git Tutorial**: https://www.atlassian.com/git/tutorials
-- **Google Sheets API**: https://developers.google.com/sheets
 
 ## Support
 
@@ -291,5 +255,5 @@ The site uses two color schemes:
 - Hosting: Cloudflare Pages
 - Email: Cloudflare Email Routing → Gmail
 - Forms: Google Forms
-- Data: Google Sheets
+- Data: Cloudflare D1
 - Code: GitHub (jnougaret/driftwood-pickleball)

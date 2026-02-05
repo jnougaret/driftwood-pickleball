@@ -8,6 +8,33 @@ let tournamentStore = {
     results: []
 };
 
+const LEGACY_RESULTS_DATA = {
+    jan10: {
+        matches: [
+            { round: 'QUARTERFINAL 1', team1: 'Teddy/Abe', team1Score: '11', team2: 'Alex/Rob', team2Score: '2' },
+            { round: 'QUARTERFINAL 2', team1: 'Josh/Bob', team1Score: '7', team2: 'Daniel/Brad', team2Score: '11' },
+            { round: 'QUARTERFINAL 3', team1: 'Colin/Joey', team1Score: '9', team2: 'Charlie/Britt', team2Score: '11' },
+            { round: 'QUARTERFINAL 4', team1: 'Sonu/Aaron', team1Score: '5', team2: 'Charlie/Danny', team2Score: '11' },
+            { round: 'SEMIFINAL 1', team1: 'Teddy/Abe', team1Score: '11', team2: 'Daniel/Brad', team2Score: '6' },
+            { round: 'SEMIFINAL 2', team1: 'Charlie/Britt', team1Score: '8', team2: 'Charlie/Danny', team2Score: '11' },
+            { round: 'GOLD', team1: 'Teddy/Abe', team1Score: '8, 11, 9', team2: 'Charlie/Danny', team2Score: '11, 0, 11' },
+            { round: 'BRONZE', team1: 'Daniel/Brad', team1Score: '5', team2: 'Charlie/Britt', team2Score: '11' }
+        ]
+    },
+    jan24: {
+        matches: [
+            { round: 'QUARTERFINAL 1', team1: 'Joey/Joe C', team1Score: '11', team2: 'Aaron/Connor', team2Score: '7' },
+            { round: 'QUARTERFINAL 2', team1: 'Carl/Ralph', team1Score: '11', team2: 'Scott/Karolina', team2Score: '7' },
+            { round: 'QUARTERFINAL 3', team1: 'Dan/Rob', team1Score: '6', team2: 'Charlie/Nolan', team2Score: '11' },
+            { round: 'QUARTERFINAL 4', team1: 'Charlie/Britt', team1Score: '5', team2: 'Sonu/Josh', team2Score: '11' },
+            { round: 'SEMIFINAL 1', team1: 'Joey/Joe C', team1Score: '9', team2: 'Carl/Ralph', team2Score: '11' },
+            { round: 'SEMIFINAL 2', team1: 'Charlie/Nolan', team1Score: '7', team2: 'Sonu/Josh', team2Score: '11' },
+            { round: 'GOLD', team1: 'Ralph/Carl', team1Score: '9', team2: 'Sonu/Josh', team2Score: '15' },
+            { round: 'BRONZE', team1: 'Joey/Joe C', team1Score: '8', team2: 'Charlie/Nolan', team2Score: '15' }
+        ]
+    }
+};
+
 async function loadTournaments() {
     const response = await fetch('/api/tournaments');
     if (!response.ok) {
@@ -2855,26 +2882,10 @@ async function loadTournamentBracket(tournamentId) {
         photoWrap.classList.add('hidden');
     }
 
-    if (tournament.csvUrl) {
-        try {
-            const response = await fetch(tournament.csvUrl);
-            const csvText = await response.text();
-            const data = parseCSV(csvText);
-
-            if (data.matches.length === 0) {
-                document.getElementById(`${tournamentId}-bracket`).innerHTML =
-                    '<p class="text-yellow-600">No match data found.</p>';
-                return;
-            }
-
-            renderBracket(tournamentId, data);
-            return;
-        } catch (error) {
-            console.error('Error loading bracket:', error);
-            document.getElementById(`${tournamentId}-bracket`).innerHTML =
-                '<p class="text-red-500">Error loading bracket data</p>';
-            return;
-        }
+    const legacy = LEGACY_RESULTS_DATA[tournamentId];
+    if (legacy && Array.isArray(legacy.matches) && legacy.matches.length) {
+        renderBracket(tournamentId, legacy);
+        return;
     }
 
     try {
@@ -3038,55 +3049,6 @@ function renderPlayoffResultsBracket(tournamentId, playoff) {
     }).join('');
 
     bracketDiv.innerHTML = `<div class="playoff-results-bracket bracket-size-${bracketSize} flex gap-4 overflow-x-auto pb-4" style="align-items:center;">${columns}</div>`;
-}
-
-// ========================================
-// CSV PARSING (SIMPLIFIED - NO METADATA)
-// ========================================
-
-function parseCSV(csv) {
-    const lines = csv.split('\n').filter(line => line.trim());
-    const matches = [];
-    
-    // Parse CSV with proper quote handling
-    const parseLine = (line) => {
-        const cells = [];
-        let currentCell = '';
-        let insideQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            
-            if (char === '"') {
-                insideQuotes = !insideQuotes;
-            } else if (char === ',' && !insideQuotes) {
-                cells.push(currentCell.trim());
-                currentCell = '';
-            } else {
-                currentCell += char;
-            }
-        }
-        cells.push(currentCell.trim());
-        return cells;
-    };
-    
-    // Skip header row, parse match data only
-    for (let i = 1; i < lines.length; i++) {
-        const cells = parseLine(lines[i]);
-        
-        // Only parse rows with round data (skip empty rows)
-        if (cells[0] && cells[0].length > 0) {
-            matches.push({
-                round: cells[0],           // Column A: Round
-                team1: cells[1] || '',     // Column B: Team 1
-                team1Score: cells[2] || '', // Column C: Team 1 Score
-                team2: cells[3] || '',     // Column D: Team 2
-                team2Score: cells[4] || ''  // Column E: Team 2 Score
-            });
-        }
-    }
-    
-    return { matches };
 }
 
 // ========================================
