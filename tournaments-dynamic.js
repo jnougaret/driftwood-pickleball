@@ -160,7 +160,7 @@ function createTournamentCard(tournament, type) {
                 <h3 id="${tournament.id}-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
                 <p id="${tournament.id}-start-line" class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
                 <div id="${tournament.id}-dupr-badge" class="dupr-badge hidden">
-                    <img src="/dupr-logo.png" alt="DUPR" loading="lazy" />
+                    <img src="/dupr-logo.png?v=20260205" alt="DUPR" loading="lazy" />
                 </div>
             </div>
             <div class="card-body">
