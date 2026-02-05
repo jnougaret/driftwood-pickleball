@@ -9,18 +9,6 @@ let tournamentStore = {
 };
 
 const LEGACY_RESULTS_DATA = {
-    jan10: {
-        matches: [
-            { round: 'QUARTERFINAL 1', team1: 'Teddy/Abe', team1Score: '11', team2: 'Alex/Rob', team2Score: '2' },
-            { round: 'QUARTERFINAL 2', team1: 'Josh/Bob', team1Score: '7', team2: 'Daniel/Brad', team2Score: '11' },
-            { round: 'QUARTERFINAL 3', team1: 'Colin/Joey', team1Score: '9', team2: 'Charlie/Britt', team2Score: '11' },
-            { round: 'QUARTERFINAL 4', team1: 'Sonu/Aaron', team1Score: '5', team2: 'Charlie/Danny', team2Score: '11' },
-            { round: 'SEMIFINAL 1', team1: 'Teddy/Abe', team1Score: '11', team2: 'Daniel/Brad', team2Score: '6' },
-            { round: 'SEMIFINAL 2', team1: 'Charlie/Britt', team1Score: '8', team2: 'Charlie/Danny', team2Score: '11' },
-            { round: 'GOLD', team1: 'Teddy/Abe', team1Score: '8, 11, 9', team2: 'Charlie/Danny', team2Score: '11, 0, 11' },
-            { round: 'BRONZE', team1: 'Daniel/Brad', team1Score: '5', team2: 'Charlie/Britt', team2Score: '11' }
-        ]
-    },
     jan24: {
         matches: [
             { round: 'QUARTERFINAL 1', team1: 'Joey/Joe C', team1Score: '11', team2: 'Aaron/Connor', team2Score: '7' },
