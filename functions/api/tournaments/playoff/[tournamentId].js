@@ -312,6 +312,15 @@ export async function onRequestPost({ request, env, params }) {
     const game3Score1 = normalizeScore(game3.score1);
     const game3Score2 = normalizeScore(game3.score2);
 
+    const isCompletePair = (a, b) => Number.isInteger(a) && Number.isInteger(b);
+    const hasAnyPairValue = (a, b) => Number.isInteger(a) || Number.isInteger(b);
+    const game1Complete = isCompletePair(game1Score1, game1Score2);
+    const game2Complete = isCompletePair(game2Score1, game2Score2);
+    const game3Complete = isCompletePair(game3Score1, game3Score2);
+    const game1Any = hasAnyPairValue(game1Score1, game1Score2);
+    const game2Any = hasAnyPairValue(game2Score1, game2Score2);
+    const game3Any = hasAnyPairValue(game3Score1, game3Score2);
+
     const allScores = [
         game1Score1, game1Score2,
         game2Score1, game2Score2,
@@ -349,12 +358,26 @@ export async function onRequestPost({ request, env, params }) {
         }, 409);
     }
 
+    if (game1Any && !game1Complete) {
+        return jsonResponse({ error: 'Game 1 requires both team scores' }, 400);
+    }
+    if (game2Any && !game2Complete) {
+        return jsonResponse({ error: 'Game 2 requires both team scores' }, 400);
+    }
+    if (game3Any && !game3Complete) {
+        return jsonResponse({ error: 'Game 3 requires both team scores' }, 400);
+    }
+
     if (!Number.isInteger(game1Score1) || !Number.isInteger(game1Score2)) {
         return jsonResponse({ error: 'Game 1 scores required' }, 400);
     }
     if (!bestOfThree && !bestOfThreeBronze) {
         if (game2Score1 !== null || game2Score2 !== null || game3Score1 !== null || game3Score2 !== null) {
             return jsonResponse({ error: 'Only finals support best of three' }, 400);
+        }
+    } else {
+        if (game3Any && !game2Complete) {
+            return jsonResponse({ error: 'Game 2 must be completed before entering Game 3' }, 400);
         }
     }
 

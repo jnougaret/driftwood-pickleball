@@ -3034,10 +3034,12 @@ function formatBestOfThreeScore(score, teamSlot) {
         [score.game2_score1, score.game2_score2],
         [score.game3_score1, score.game3_score2]
     ];
-    games.forEach(([s1, s2]) => {
-        if (!Number.isInteger(s1) || !Number.isInteger(s2)) return;
-        list.push(teamSlot === 1 ? `${s1}-${s2}` : `${s2}-${s1}`);
-    });
+    for (const [s1, s2] of games) {
+        // Only render consecutive completed games from the start.
+        // This avoids showing sparse values that imply missing game slots.
+        if (!Number.isInteger(s1) || !Number.isInteger(s2)) break;
+        list.push(String(teamSlot === 1 ? s1 : s2));
+    }
     return list.length ? list.join(', ') : 'TBD';
 }
 
