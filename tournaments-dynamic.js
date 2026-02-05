@@ -278,7 +278,7 @@ function createTournamentCard(tournament, type) {
                                 </div>
                                 <input
                                     type="range"
-                                    min="2"
+                                    min="4"
                                     max="10"
                                     step="1"
                                     value="6"
@@ -1057,7 +1057,7 @@ function adminSettingsMarkup(tournamentId) {
                     </div>
                     <input
                         type="range"
-                        min="2"
+                        min="4"
                         max="10"
                         step="1"
                         value="6"
@@ -1225,8 +1225,7 @@ function applySettingsToInputs(tournamentId, settings, minTeams) {
     }
 
     if (roundsInput && roundsValue && Number.isInteger(settings.rounds)) {
-        const teamCount = Number.isInteger(minTeams) ? minTeams : 0;
-        const minRounds = Math.max(2, Math.max(2, teamCount) - 1);
+        const minRounds = 4;
         const maxRounds = Math.max(10, minRounds);
         roundsInput.min = minRounds;
         roundsInput.max = maxRounds;
@@ -1251,7 +1250,7 @@ async function updateMaxTeams(tournamentId, value) {
             : `${maxTeams} team maximum`;
     }
     if (roundsInput) {
-        const minRounds = Number(roundsInput.dataset.minRounds || roundsInput.min || 2);
+        const minRounds = Number(roundsInput.dataset.minRounds || roundsInput.min || 4);
         const maxRounds = Number(roundsInput.max || 10);
         roundsInput.min = minRounds;
         roundsInput.max = maxRounds;
