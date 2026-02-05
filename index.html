@@ -97,21 +97,21 @@
         .bracket-round.semifinals,
         .bracket-round.finals {
             justify-content: center;
-            min-height: 410px;
+            min-height: 360px;
         }
 
         .bracket-round.semifinals {
-            gap: 100px;
+            gap: 72px;
         }
 
         /* DB-rendered playoff results: shrink vertical spacing for smaller brackets */
         .playoff-results-bracket.bracket-size-4 .bracket-round.semifinals,
         .playoff-results-bracket.bracket-size-4 .bracket-round.finals {
-            min-height: 280px;
+            min-height: 240px;
         }
 
         .playoff-results-bracket.bracket-size-4 .bracket-round.semifinals {
-            gap: 40px;
+            gap: 28px;
         }
 
         .playoff-results-bracket.bracket-size-2 .bracket-round.finals {
@@ -127,9 +127,9 @@
             background: white;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
-            padding: 12px;
-            margin: 8px 0;
-            min-height: 80px;
+            padding: 10px;
+            margin: 6px 0;
+            min-height: 68px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -150,8 +150,9 @@
         .bracket-team {
             display: flex;
             justify-content: space-between;
-            padding: 4px 0;
+            padding: 2px 0;
             font-size: 14px;
+            line-height: 1.2;
         }
 
         .bracket-team span:last-child {
