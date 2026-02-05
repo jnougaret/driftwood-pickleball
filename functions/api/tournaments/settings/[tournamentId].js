@@ -15,7 +15,7 @@ async function getUserById(env, userId) {
 
 async function getSettings(env, tournamentId) {
     return await env.DB.prepare(
-        'SELECT max_teams, rounds, playoff_teams, playoff_best_of_three, playoff_best_of_three_bronze FROM tournament_settings WHERE tournament_id = ?'
+        'SELECT max_teams, rounds, playoff_teams, playoff_best_of_three, playoff_best_of_three_bronze, dupr_required FROM tournament_settings WHERE tournament_id = ?'
     ).bind(tournamentId).first();
 }
 
@@ -32,18 +32,19 @@ async function ensureTournamentRow(env, tournamentId) {
     ).bind(tournamentId, tournamentId).run();
 }
 
-async function upsertSettings(env, tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze) {
+async function upsertSettings(env, tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze, duprRequired) {
     await env.DB.prepare(
-        `INSERT INTO tournament_settings (tournament_id, max_teams, rounds, playoff_teams, playoff_best_of_three, playoff_best_of_three_bronze)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO tournament_settings (tournament_id, max_teams, rounds, playoff_teams, playoff_best_of_three, playoff_best_of_three_bronze, dupr_required)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(tournament_id) DO UPDATE SET
             max_teams = excluded.max_teams,
             rounds = excluded.rounds,
             playoff_teams = excluded.playoff_teams,
             playoff_best_of_three = excluded.playoff_best_of_three,
             playoff_best_of_three_bronze = excluded.playoff_best_of_three_bronze,
+            dupr_required = excluded.dupr_required,
             updated_at = CURRENT_TIMESTAMP`
-    ).bind(tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze).run();
+    ).bind(tournamentId, maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze, duprRequired).run();
 }
 
 export async function onRequestGet({ env, params }) {
@@ -61,6 +62,7 @@ export async function onRequestGet({ env, params }) {
             playoffTeams: settings?.playoff_teams ?? null,
             playoffBestOfThree: settings?.playoff_best_of_three === 1,
             playoffBestOfThreeBronze: settings?.playoff_best_of_three_bronze === 1,
+            duprRequired: settings?.dupr_required === 1,
             status: state?.status ?? 'registration'
         });
     } catch (error) {
@@ -92,8 +94,8 @@ export async function onRequestPost({ request, env, params }) {
         return jsonResponse({ error: 'Invalid JSON body' }, 400);
     }
 
-    const { maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze } = body;
-    const updates = [maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze].some(value => value !== undefined);
+    const { maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze, duprRequired } = body;
+    const updates = [maxTeams, rounds, playoffTeams, playoffBestOfThree, playoffBestOfThreeBronze, duprRequired].some(value => value !== undefined);
     if (!updates) {
         return jsonResponse({ error: 'No settings provided' }, 400);
     }
@@ -112,6 +114,9 @@ export async function onRequestPost({ request, env, params }) {
     if (playoffBestOfThreeBronze !== undefined && typeof playoffBestOfThreeBronze !== 'boolean') {
         return jsonResponse({ error: 'playoffBestOfThreeBronze must be a boolean' }, 400);
     }
+    if (duprRequired !== undefined && typeof duprRequired !== 'boolean') {
+        return jsonResponse({ error: 'duprRequired must be a boolean' }, 400);
+    }
 
     await ensureTournamentRow(env, tournamentId);
 
@@ -126,6 +131,7 @@ export async function onRequestPost({ request, env, params }) {
     const nextPlayoffTeams = playoffTeams ?? existing?.playoff_teams ?? null;
     const nextPlayoffBestOfThree = playoffBestOfThree ?? (existing?.playoff_best_of_three === 1);
     const nextPlayoffBestOfThreeBronze = playoffBestOfThreeBronze ?? (existing?.playoff_best_of_three_bronze === 1);
+    const nextDuprRequired = duprRequired ?? (existing?.dupr_required === 1);
 
     await upsertSettings(
         env,
@@ -134,7 +140,8 @@ export async function onRequestPost({ request, env, params }) {
         nextRounds,
         nextPlayoffTeams,
         nextPlayoffBestOfThree ? 1 : 0,
-        nextPlayoffBestOfThreeBronze ? 1 : 0
+        nextPlayoffBestOfThreeBronze ? 1 : 0,
+        nextDuprRequired ? 1 : 0
     );
     return jsonResponse({ success: true });
 }

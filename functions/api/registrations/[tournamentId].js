@@ -52,6 +52,7 @@ async function listTeams(env, tournamentId) {
         `SELECT t.id AS team_id,
                 u.id AS user_id,
                 u.display_name AS display_name,
+                u.dupr_id AS dupr_id,
                 u.doubles_rating AS doubles_rating,
                 u.singles_rating AS singles_rating
          FROM teams t
@@ -67,12 +68,13 @@ async function listTeams(env, tournamentId) {
             teamMap.set(row.team_id, { id: row.team_id, players: [] });
         }
         if (row.user_id) {
-            teamMap.get(row.team_id).players.push({
-                id: row.user_id,
-                name: row.display_name || 'Player',
-                doublesRating: row.doubles_rating,
-                singlesRating: row.singles_rating
-            });
+                teamMap.get(row.team_id).players.push({
+                    id: row.user_id,
+                    name: row.display_name || 'Player',
+                    duprId: row.dupr_id,
+                    doublesRating: row.doubles_rating,
+                    singlesRating: row.singles_rating
+                });
         }
     }
 

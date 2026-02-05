@@ -159,6 +159,7 @@ function createTournamentCard(tournament, type) {
             <div class="card-header">
                 <h3 id="${tournament.id}-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
                 <p id="${tournament.id}-start-line" class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
+                <div id="${tournament.id}-dupr-badge" class="dupr-badge hidden">DUPR</div>
             </div>
             <div class="card-body">
                 <div id="${tournament.id}-details-display" class="space-y-3 mb-6">
@@ -301,6 +302,21 @@ function createTournamentCard(tournament, type) {
                                     class="w-full"
                                     oninput="updateRounds('${tournament.id}', this.value)"
                                 >
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-gray-700">DUPR reported</span>
+                                    <span class="text-xs text-gray-500" id="${tournament.id}-dupr-required-value">Off</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    id="${tournament.id}-dupr-required"
+                                    data-enabled="false"
+                                    onclick="toggleDuprRequired('${tournament.id}')"
+                                    class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
+                                >
+                                    DUPR reported (Off)
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -940,10 +956,34 @@ async function fetchTournamentSettings(tournamentId) {
             status: data.status,
             playoffTeams: data.playoffTeams,
             playoffBestOfThree: data.playoffBestOfThree,
-            playoffBestOfThreeBronze: data.playoffBestOfThreeBronze
+            playoffBestOfThreeBronze: data.playoffBestOfThreeBronze,
+            duprRequired: data.duprRequired
         }));
+        if (typeof data.duprRequired === 'boolean') {
+            updateDuprBadge(tournamentId, data.duprRequired);
+        }
     }
     return data;
+}
+
+async function getDuprRequiredSetting(tournamentId) {
+    const cached = localStorage.getItem(`tournament-settings-${tournamentId}`);
+    if (cached) {
+        try {
+            const parsed = JSON.parse(cached);
+            if (typeof parsed.duprRequired === 'boolean') {
+                return parsed.duprRequired;
+            }
+        } catch (error) {
+            // ignore cache parse errors
+        }
+    }
+    try {
+        const settings = await fetchTournamentSettings(tournamentId);
+        return settings?.duprRequired === true;
+    } catch (error) {
+        return false;
+    }
 }
 
 async function saveTournamentSettings(tournamentId, settings) {
@@ -1081,6 +1121,21 @@ function adminSettingsMarkup(tournamentId) {
                         oninput="updateRounds('${tournamentId}', this.value)"
                     >
                 </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700">DUPR reported</span>
+                        <span class="text-xs text-gray-500" id="${tournamentId}-dupr-required-value">Off</span>
+                    </div>
+                    <button
+                        type="button"
+                        id="${tournamentId}-dupr-required"
+                        data-enabled="false"
+                        onclick="toggleDuprRequired('${tournamentId}')"
+                        class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
+                    >
+                        DUPR reported (Off)
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -1095,6 +1150,16 @@ function ensureAdminSettings(tournamentId) {
     const container = registration.querySelector('.p-6');
     if (!container) return;
     container.insertAdjacentHTML('afterbegin', adminSettingsMarkup(tournamentId));
+}
+
+function updateDuprBadge(tournamentId, enabled) {
+    const badge = document.getElementById(`${tournamentId}-dupr-badge`);
+    if (!badge) return;
+    if (enabled) {
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
 }
 
 function formatRating(player, preferDoubles) {
@@ -1215,7 +1280,7 @@ async function loadAdminSettings(tournamentId) {
         console.error('Load settings error:', error);
         // Keep admin tools visible even if settings fetch fails.
         settingsContainer.classList.remove('hidden');
-        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6 }, 6);
+        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6, duprRequired: false }, 6);
     }
 }
 
@@ -1224,6 +1289,8 @@ function applySettingsToInputs(tournamentId, settings, minTeams) {
     const roundsInput = document.getElementById(`${tournamentId}-rounds`);
     const maxTeamsValue = document.getElementById(`${tournamentId}-max-teams-value`);
     const roundsValue = document.getElementById(`${tournamentId}-rounds-value`);
+    const duprButton = document.getElementById(`${tournamentId}-dupr-required`);
+    const duprValue = document.getElementById(`${tournamentId}-dupr-required-value`);
 
     if (maxTeamsInput && maxTeamsValue && Number.isInteger(settings.maxTeams)) {
         const minValue = Math.max(6, Number.isInteger(minTeams) ? minTeams : 6);
@@ -1248,6 +1315,18 @@ function applySettingsToInputs(tournamentId, settings, minTeams) {
         const safeRounds = Math.min(maxRounds, Math.max(minRounds, settings.rounds));
         roundsInput.value = safeRounds;
         roundsValue.textContent = safeRounds;
+    }
+
+    if (duprButton && duprValue) {
+        const enabled = settings.duprRequired === true;
+        duprButton.dataset.enabled = enabled ? 'true' : 'false';
+        duprValue.textContent = enabled ? 'On' : 'Off';
+        duprButton.textContent = `DUPR reported (${enabled ? 'On' : 'Off'})`;
+        duprButton.classList.toggle('bg-ocean-blue', enabled);
+        duprButton.classList.toggle('text-white', enabled);
+        duprButton.classList.toggle('bg-white', !enabled);
+        duprButton.classList.toggle('text-ocean-blue', !enabled);
+        updateDuprBadge(tournamentId, enabled);
     }
 }
 
@@ -1289,6 +1368,23 @@ async function updateRounds(tournamentId, value) {
     if (roundsValue) {
         roundsValue.textContent = value;
     }
+    await persistSettings(tournamentId);
+}
+
+async function toggleDuprRequired(tournamentId) {
+    const button = document.getElementById(`${tournamentId}-dupr-required`);
+    const valueLabel = document.getElementById(`${tournamentId}-dupr-required-value`);
+    if (!button || !valueLabel) return;
+    const isOn = button.dataset.enabled === 'true';
+    const next = !isOn;
+    button.dataset.enabled = next ? 'true' : 'false';
+    valueLabel.textContent = next ? 'On' : 'Off';
+    button.textContent = `DUPR reported (${next ? 'On' : 'Off'})`;
+    button.classList.toggle('bg-ocean-blue', next);
+    button.classList.toggle('text-white', next);
+    button.classList.toggle('bg-white', !next);
+    button.classList.toggle('text-ocean-blue', !next);
+    updateDuprBadge(tournamentId, next);
     await persistSettings(tournamentId);
 }
 
@@ -1348,15 +1444,19 @@ async function flushSettingsSaves() {
     await Promise.all(tournaments.map(async tournamentId => {
         const maxTeamsInput = document.getElementById(`${tournamentId}-max-teams`);
         const roundsInput = document.getElementById(`${tournamentId}-rounds`);
+        const duprButton = document.getElementById(`${tournamentId}-dupr-required`);
         if (!maxTeamsInput || !roundsInput) return;
         try {
+            const duprRequired = duprButton ? duprButton.dataset.enabled === 'true' : false;
             await saveTournamentSettings(tournamentId, {
                 maxTeams: Number(maxTeamsInput.value),
-                rounds: Number(roundsInput.value)
+                rounds: Number(roundsInput.value),
+                duprRequired
             });
             localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
                 maxTeams: Number(maxTeamsInput.value),
-                rounds: Number(roundsInput.value)
+                rounds: Number(roundsInput.value),
+                duprRequired
             }));
         } catch (error) {
             console.error('Save settings error:', error);
@@ -2444,6 +2544,7 @@ async function renderRegistrationList(tournamentId) {
     let teams = [];
     let maxTeams = 12;
     let status = 'registration';
+    let duprRequired = false;
     try {
         teams = await fetchRegistrations(tournamentId);
         const settings = await fetchTournamentSettings(tournamentId);
@@ -2452,6 +2553,9 @@ async function renderRegistrationList(tournamentId) {
         }
         if (settings && settings.status) {
             status = settings.status;
+        }
+        if (settings && settings.duprRequired === true) {
+            duprRequired = true;
         }
     } catch (error) {
         list.innerHTML = '<p class="text-sm text-red-500">Unable to load registrations.</p>';
@@ -2633,6 +2737,8 @@ async function renderRegistrationList(tournamentId) {
         loadAdminSettings(tournamentId);
         const hasMinTeams = teams.length >= 4;
         const allFull = teams.every(team => (team.players || []).length >= 2);
+        const allDuprLinked = !duprRequired
+            || teams.every(team => (team.players || []).every(player => Boolean(player.duprId)));
         const existingButton = document.getElementById(`${tournamentId}-start-round-robin`);
         if (!existingButton) {
             const button = document.createElement('button');
@@ -2644,7 +2750,7 @@ async function renderRegistrationList(tournamentId) {
         }
         const startButton = document.getElementById(`${tournamentId}-start-round-robin`);
         if (startButton) {
-            startButton.disabled = !(hasMinTeams && allFull);
+            startButton.disabled = !(hasMinTeams && allFull && allDuprLinked);
             startButton.classList.toggle('opacity-50', startButton.disabled);
             startButton.classList.toggle('cursor-not-allowed', startButton.disabled);
         }
@@ -2683,7 +2789,17 @@ async function refreshTournamentButtons() {
                 }
             }
         } catch (error) {
-            // ignore
+            const cached = localStorage.getItem(`tournament-settings-${tournament.id}`);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (typeof parsed.duprRequired === 'boolean') {
+                        updateDuprBadge(tournament.id, parsed.duprRequired);
+                    }
+                } catch (parseError) {
+                    // ignore
+                }
+            }
         }
     }
 }
@@ -2692,8 +2808,11 @@ async function registerTeam(tournamentId) {
     setOpenRegistration(tournamentId);
     const user = await requireAuth();
     if (!user) return;
-    const linked = await ensureDuprLinked();
-    if (!linked) return;
+    const duprRequired = await getDuprRequiredSetting(tournamentId);
+    if (duprRequired) {
+        const linked = await ensureDuprLinked();
+        if (!linked) return;
+    }
 
     try {
         await submitRegistration({ action: 'create', tournamentId });
@@ -2707,8 +2826,11 @@ async function joinTeam(tournamentId, teamIndex) {
     setOpenRegistration(tournamentId);
     const user = await requireAuth();
     if (!user) return;
-    const linked = await ensureDuprLinked();
-    if (!linked) return;
+    const duprRequired = await getDuprRequiredSetting(tournamentId);
+    if (duprRequired) {
+        const linked = await ensureDuprLinked();
+        if (!linked) return;
+    }
 
     const tournament = findUpcomingTournament(tournamentId);
     if (!tournament || !isDoublesTournament(tournament)) {

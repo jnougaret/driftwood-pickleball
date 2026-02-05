@@ -98,9 +98,10 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const settings = await env.DB.prepare(
-        'SELECT rounds FROM tournament_settings WHERE tournament_id = ?'
+        'SELECT rounds, dupr_required FROM tournament_settings WHERE tournament_id = ?'
     ).bind(tournamentId).first();
     const rounds = settings?.rounds ?? 6;
+    const duprRequired = settings?.dupr_required === 1;
 
     await ensureTournamentRow(env, tournamentId);
 
@@ -115,6 +116,22 @@ export async function onRequestPost({ request, env, params }) {
     }
     if (teams.some(team => team.playerCount < 2)) {
         return jsonResponse({ error: 'All teams must have two players' }, 400);
+    }
+
+    if (duprRequired) {
+        const duprCheck = await env.DB.prepare(
+            `SELECT COUNT(*) AS total_players,
+                    SUM(CASE WHEN u.dupr_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_players
+             FROM team_members tm
+             JOIN teams t ON t.id = tm.team_id
+             JOIN users u ON u.id = tm.user_id
+             WHERE t.tournament_id = ?`
+        ).bind(tournamentId).first();
+        const totalPlayers = Number(duprCheck?.total_players || 0);
+        const linkedPlayers = Number(duprCheck?.linked_players || 0);
+        if (totalPlayers > 0 && linkedPlayers < totalPlayers) {
+            return jsonResponse({ error: 'All players must link their DUPR account' }, 400);
+        }
     }
 
     await env.DB.prepare(

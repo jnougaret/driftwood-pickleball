@@ -108,6 +108,7 @@ CREATE TABLE tournament_settings (
   playoff_teams INTEGER,
   playoff_best_of_three INTEGER DEFAULT 0,
   playoff_best_of_three_bronze INTEGER DEFAULT 0,
+  dupr_required INTEGER DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
 );
