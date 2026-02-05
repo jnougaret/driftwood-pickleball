@@ -160,7 +160,7 @@ function createTournamentCard(tournament, type) {
                 <h3 id="${tournament.id}-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
                 <p id="${tournament.id}-start-line" class="text-gray-200">${tournament.startTime} @ ${tournament.location}</p>
                 <div id="${tournament.id}-dupr-badge" class="dupr-badge hidden">
-                    <img src="/dupr-logo.png?v=20260205" alt="DUPR" loading="lazy" />
+                    <img src="/dupr-logo.png?v=20260206" alt="DUPR" loading="lazy" />
                 </div>
             </div>
             <div class="card-body">
@@ -3022,9 +3022,37 @@ async function loadTournamentBracket(tournamentId) {
     }
 }
 
+function parseLegacyScorePair(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+    if (!match) return null;
+    return {
+        team1: Number(match[1]),
+        team2: Number(match[2])
+    };
+}
+
+function normalizeDisplayScore(value, teamSlot) {
+    if (Number.isInteger(value)) return value;
+    const pair = parseLegacyScorePair(value);
+    if (!pair) return null;
+    return teamSlot === 1 ? pair.team1 : pair.team2;
+}
+
 function formatSingleGameScore(score1, score2) {
-    if (!Number.isInteger(score1) || !Number.isInteger(score2)) return null;
-    return { team1: String(score1), team2: String(score2) };
+    let team1 = normalizeDisplayScore(score1, 1);
+    let team2 = normalizeDisplayScore(score2, 2);
+
+    // Backward compatibility: some legacy rows saved full "A-B" strings in one or both columns.
+    if (team1 === null || team2 === null) {
+        const pairFromScore1 = parseLegacyScorePair(score1);
+        const pairFromScore2 = parseLegacyScorePair(score2);
+        if (team1 === null) team1 = pairFromScore1?.team1 ?? pairFromScore2?.team1 ?? null;
+        if (team2 === null) team2 = pairFromScore1?.team2 ?? pairFromScore2?.team2 ?? null;
+    }
+
+    if (!Number.isInteger(team1) || !Number.isInteger(team2)) return null;
+    return { team1: String(team1), team2: String(team2) };
 }
 
 function formatBestOfThreeScore(score, teamSlot) {
@@ -3035,10 +3063,11 @@ function formatBestOfThreeScore(score, teamSlot) {
         [score.game3_score1, score.game3_score2]
     ];
     for (const [s1, s2] of games) {
+        const formatted = formatSingleGameScore(s1, s2);
         // Only render consecutive completed games from the start.
         // This avoids showing sparse values that imply missing game slots.
-        if (!Number.isInteger(s1) || !Number.isInteger(s2)) break;
-        list.push(String(teamSlot === 1 ? s1 : s2));
+        if (!formatted) break;
+        list.push(teamSlot === 1 ? formatted.team1 : formatted.team2);
     }
     return list.length ? list.join(', ') : 'TBD';
 }

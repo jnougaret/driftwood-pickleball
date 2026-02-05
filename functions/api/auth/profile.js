@@ -160,6 +160,15 @@ async function handleProfileUpdate(request, env) {
 
     const { displayName, duprId, doublesRating, singlesRating } = body;
 
+    if (duprId !== undefined || doublesRating !== undefined || singlesRating !== undefined) {
+        return new Response(JSON.stringify({
+            error: 'DUPR fields must be linked via DUPR SSO'
+        }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     // Validate required fields
     if (!displayName || displayName.trim() === '') {
         return new Response(JSON.stringify({ error: 'Display name is required' }), {
@@ -175,28 +184,17 @@ async function handleProfileUpdate(request, env) {
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 display_name = excluded.display_name,
-                dupr_id = excluded.dupr_id,
-                doubles_rating = excluded.doubles_rating,
-                singles_rating = excluded.singles_rating,
                 is_admin = CASE WHEN excluded.is_admin = 1 THEN 1 ELSE users.is_admin END,
                 updated_at = CURRENT_TIMESTAMP
         `).bind(
             userId,
             email,
             displayName,
-            duprId || null,
-            doublesRating || null,
-            singlesRating || null,
+            null,
+            null,
+            null,
             (isMasterAdmin || isAllowlistedAdmin) ? 1 : 0
         ).run();
-
-        if (duprId === null) {
-            // Remove user from all teams if they unlink DUPR
-            await env.DB.batch([
-                env.DB.prepare('DELETE FROM team_members WHERE user_id = ?').bind(userId),
-                env.DB.prepare('DELETE FROM teams WHERE id NOT IN (SELECT DISTINCT team_id FROM team_members)')
-            ]);
-        }
 
         // Fetch and return the updated profile
         const result = await env.DB.prepare(

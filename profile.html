@@ -181,12 +181,9 @@
                             </div>
                         </div>
 
-                        <button
-                            onclick="unlinkDuprAccount()"
-                            class="text-red-600 hover:text-red-800 transition text-sm"
-                        >
-                            Unlink DUPR Account
-                        </button>
+                        <p class="text-xs text-gray-500">
+                            To change linked DUPR data, re-authenticate using "Link DUPR Account".
+                        </p>
                     </div>
 
                     <div id="error-message" class="hidden p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -466,26 +463,6 @@
             };
         }
 
-        async function fetchDuprBasicInfo(userToken) {
-            if (!userToken || typeof userToken !== 'string') return null;
-            try {
-                const token = await window.authUtils.getAuthToken();
-                const response = await fetch('/api/dupr/basic-info', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ userToken })
-                });
-                if (!response.ok) return null;
-                const data = await response.json();
-                return data && data.profile ? data.profile : null;
-            } catch (error) {
-                return null;
-            }
-        }
-
         function parseDuprMessagePayload(data) {
             if (!data) return null;
             if (typeof data === 'string') {
@@ -500,52 +477,21 @@
         }
 
         async function saveLinkedDuprProfile(payload) {
-            const user = window.authUtils.getCurrentUser();
-            const fallbackName = user.firstName && user.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user.emailAddresses[0].emailAddress.split('@')[0];
-            const basicInfo = await fetchDuprBasicInfo(payload.userToken);
-            const payloadRatings = extractRatings(payload.stats);
-            const basicInfoRatings = extractRatings(basicInfo && (basicInfo.stats || basicInfo));
-            const doublesRating = basicInfoRatings.doublesRating ?? payloadRatings.doublesRating;
-            const singlesRating = basicInfoRatings.singlesRating ?? payloadRatings.singlesRating;
-            const duprId = (basicInfo && (basicInfo.duprId || basicInfo.dupr_id || basicInfo.id))
-                || payload.duprId
-                || payload.id
-                || payload.userId
-                || null;
-            const basicInfoName = basicInfo
-                ? (basicInfo.displayName
-                    || `${basicInfo.firstName || ''} ${basicInfo.lastName || ''}`.trim())
-                : '';
-            const payloadName = payload.displayName
-                || `${payload.firstName || ''} ${payload.lastName || ''}`.trim();
-            const displayName = basicInfoName || payloadName || fallbackName;
-
-            if (!duprId) {
-                throw new Error('DUPR did not return a DUPR ID');
-            }
-
             const token = await window.authUtils.getAuthToken();
-            const response = await fetch('/api/auth/profile', {
+            const response = await fetch('/api/dupr/link', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    displayName,
-                    duprId,
-                    doublesRating,
-                    singlesRating
+                    userToken: payload.userToken || null
                 })
             });
-
             if (!response.ok) {
                 const error = await response.json().catch(() => ({}));
-                throw new Error(error.error || 'Failed to save DUPR profile');
+                throw new Error(error.error || 'Failed to link DUPR account');
             }
-
             const result = await response.json();
             showDuprLinked(result.profile);
             window.duprLinked = true;
@@ -604,41 +550,6 @@
                 showError('Unable to initialize DUPR linking');
                 button.disabled = false;
                 button.textContent = 'Link DUPR Account';
-            }
-        }
-
-        // Unlink DUPR account
-        async function unlinkDuprAccount() {
-            if (!confirm('Are you sure you want to unlink your DUPR account?')) {
-                return;
-            }
-
-            try {
-                const clerk = window.authUtils.getClerkInstance();
-                const token = await clerk.session.getToken();
-                const response = await fetch('/api/auth/profile', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        displayName: 'User',
-                        duprId: null,
-                        doublesRating: null,
-                        singlesRating: null
-                    })
-                });
-
-                if (response.ok) {
-                    showSuccess('DUPR account unlinked');
-                    showDuprNotLinked();
-                } else {
-                    showError('Failed to unlink DUPR account');
-                }
-            } catch (error) {
-                console.error('Error unlinking DUPR:', error);
-                showError('Failed to unlink DUPR account');
             }
         }
 
