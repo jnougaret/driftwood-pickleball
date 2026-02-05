@@ -541,13 +541,9 @@ function refreshAdminDetailEditors() {
     getResultsTournaments().forEach(tournament => {
         const resultsActions = document.getElementById(`${tournament.id}-results-admin-actions`);
         if (!resultsActions) return;
-        const deleteButton = document.getElementById(`${tournament.id}-results-delete-button`);
-        if (isAdmin) {
+        if (isMasterAdmin) {
             resultsActions.classList.remove('hidden');
             resultsActions.classList.add('flex');
-            if (deleteButton) {
-                deleteButton.classList.toggle('hidden', !isMasterAdmin);
-            }
         } else {
             resultsActions.classList.add('hidden');
             resultsActions.classList.remove('flex');
