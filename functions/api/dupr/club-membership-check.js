@@ -97,13 +97,36 @@ async function fetchClubMembership(env, accessToken, duprEnv, duprId) {
 
 export async function onRequestGet({ request, env }) {
     try {
+        const url = new URL(request.url);
+        const debug = String(url.searchParams.get('debug') || '').toLowerCase();
+
         const auth = await verifyFromHeaderOrSessionCookie(request);
         if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
+        if (debug === 'auth') {
+            return jsonResponse({
+                success: true,
+                stage: 'auth',
+                userId: auth.userId || null
+            });
+        }
 
         const user = await getUserById(env, auth.userId);
         if (!user || !user.is_admin) return jsonResponse({ error: 'Forbidden' }, 403);
         if (!user.dupr_id) {
             return jsonResponse({ error: 'Current admin does not have a linked DUPR account' }, 400);
+        }
+        if (debug === 'db') {
+            return jsonResponse({
+                success: true,
+                stage: 'db',
+                user: {
+                    id: user.id,
+                    email: user.email || '',
+                    displayName: user.display_name || '',
+                    duprId: user.dupr_id,
+                    isAdmin: user.is_admin === 1
+                }
+            });
         }
 
         const token = await fetchPartnerAccessToken(env);
@@ -112,6 +135,13 @@ export async function onRequestGet({ request, env }) {
                 error: token.error || 'Unable to fetch partner token',
                 details: token.response || null
             }, 502);
+        }
+        if (debug === 'token') {
+            return jsonResponse({
+                success: true,
+                stage: 'token',
+                environment: token.environment || getDuprEnv(env)
+            });
         }
 
         const duprEnv = token.environment || getDuprEnv(env);
