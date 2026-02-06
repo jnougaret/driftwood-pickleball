@@ -1422,12 +1422,12 @@ function getRoundCardTheme(index) {
     const useInverted = index % 2 === 1;
     if (useInverted) {
         return {
-            bg: '#eadfc9',
-            border: 'rgba(127,99,64,0.28)',
-            titleClass: 'text-ocean-blue',
-            mutedClass: 'text-ocean-blue/80',
-            emptyClass: 'text-ocean-blue/80',
-            cardClass: 'round-card-inverted'
+            bg: '#5f879a',
+            border: 'rgba(95,135,154,0.5)',
+            titleClass: 'text-white',
+            mutedClass: 'text-white/80',
+            emptyClass: 'text-white/80',
+            cardClass: ''
         };
     }
     return {
