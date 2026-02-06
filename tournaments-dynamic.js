@@ -1419,14 +1419,15 @@ function renderTeamName(name, formatter) {
 }
 
 function getRoundCardTheme(index) {
-    const useGold = index % 2 === 1;
-    if (useGold) {
+    const useInverted = index % 2 === 1;
+    if (useInverted) {
         return {
-            bg: '#d9a03a',
-            border: 'rgba(217,160,58,0.55)',
+            bg: '#eadfc9',
+            border: 'rgba(127,99,64,0.28)',
             titleClass: 'text-ocean-blue',
             mutedClass: 'text-ocean-blue/80',
-            emptyClass: 'text-ocean-blue/80'
+            emptyClass: 'text-ocean-blue/80',
+            cardClass: 'round-card-inverted'
         };
     }
     return {
@@ -1434,7 +1435,8 @@ function getRoundCardTheme(index) {
         border: 'rgba(26,58,82,0.35)',
         titleClass: 'text-white',
         mutedClass: 'text-white/60',
-        emptyClass: 'text-white/70'
+        emptyClass: 'text-white/70',
+        cardClass: ''
     };
 }
 
@@ -2038,7 +2040,7 @@ async function renderTournamentView(tournamentId, options = {}) {
                     const record = `(${team.wins}-${team.losses})`;
                     const avgDiff = `${team.avgDiff >= 0 ? '+' : ''}${team.avgDiff.toFixed(1)}`;
                     return `
-                        <div class="bg-white rounded-lg p-3 flex items-center justify-between gap-3">
+                        <div class="round-inner-card bg-white rounded-lg p-3 flex items-center justify-between gap-3">
                             <div class="flex-1">
                                 ${formatTeamNameLines(team.name)}
                             </div>
@@ -2106,7 +2108,7 @@ async function renderTournamentView(tournamentId, options = {}) {
                 ` : '';
 
                 return `
-                    <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
+                    <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3 ${theme.cardClass}" style="background-color: ${theme.bg}; border-color: ${theme.border};">
                         ${playoffControls}
                         <div class="text-lg font-semibold ${theme.titleClass} mb-3">Results</div>
                         <div class="space-y-2">${rows || `<div class="text-sm ${theme.emptyClass}">No results yet.</div>`}</div>
@@ -2127,12 +2129,12 @@ async function renderTournamentView(tournamentId, options = {}) {
                     canEdit = isAdmin || isParticipant;
                 }
                 return `
-                    <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team1_name || 'Team 1')}
                             ${scoreInputHtml(tournamentId, match.match_id, 1, match.score1, canEdit, match.version)}
                         </div>
-                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="h-px round-inner-divider"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${formatTeamNameLines(match.team2_name || 'Team 2')}
                             ${scoreInputHtml(tournamentId, match.match_id, 2, match.score2, canEdit, match.version)}
@@ -2144,14 +2146,14 @@ async function renderTournamentView(tournamentId, options = {}) {
             const byeTeamId = byeMap.get(Number(round));
             const byeTeam = (data.teams || []).find(team => team.team_id === byeTeamId);
             const byeCard = byeTeam ? `
-                <div class="bg-gray-100 border border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
+                <div class="round-inner-bye bg-gray-100 border border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-between gap-3 text-gray-600">
                     ${formatTeamNameLines(byeTeam.team_name || 'Team')}
                     <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                 </div>
             ` : '';
 
             return `
-                <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
+                <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3 ${theme.cardClass}" style="background-color: ${theme.bg}; border-color: ${theme.border};">
                     <h5 class="text-lg font-semibold ${theme.titleClass} mb-3">Round ${round} of ${totalRounds}</h5>
                     <div class="space-y-2">${cards}${byeCard || (roundMatches.length === 0 ? `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>` : '')}</div>
                 </div>
@@ -2440,12 +2442,12 @@ async function renderPlayoffView(
             if (match.team1Id && !match.team2Id) {
                 if (roundNumber > 1) {
                     return `
-                        <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                        <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                             <div class="flex items-center justify-between gap-3 text-gray-600">
                                 ${renderTeamName(team1Name, nameFormatter)}
                                 ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree, matchVersion)}
                             </div>
-                            <div class="h-px bg-ocean-blue/50"></div>
+                            <div class="h-px round-inner-divider"></div>
                             <div class="flex items-center justify-between gap-3 text-gray-500">
                                 ${formatTbdLine()}
                                 ${renderInputs(2, [null, null, null], isFinal && bestOfThree, matchVersion)}
@@ -2454,7 +2456,7 @@ async function renderPlayoffView(
                     `;
                 }
                 return `
-                    <div class="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 text-gray-600">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 text-gray-600">
                         ${renderTeamName(team1Name, nameFormatter)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
@@ -2463,12 +2465,12 @@ async function renderPlayoffView(
             if (!match.team1Id && match.team2Id) {
                 if (roundNumber > 1) {
                     return `
-                        <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                        <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                             <div class="flex items-center justify-between gap-3 text-gray-500">
                                 ${formatTbdLine()}
                                 ${renderInputs(1, [null, null, null], isFinal && bestOfThree, matchVersion)}
                             </div>
-                            <div class="h-px bg-ocean-blue/50"></div>
+                            <div class="h-px round-inner-divider"></div>
                             <div class="flex items-center justify-between gap-3 text-gray-600">
                                 ${renderTeamName(team2Name, nameFormatter)}
                                 ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree, matchVersion)}
@@ -2477,7 +2479,7 @@ async function renderPlayoffView(
                     `;
                 }
                 return `
-                    <div class="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 text-gray-600">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3 text-gray-600">
                         ${renderTeamName(team2Name, nameFormatter)}
                         <span class="text-xs uppercase tracking-wide text-gray-500">Bye</span>
                     </div>
@@ -2485,11 +2487,11 @@ async function renderPlayoffView(
             }
             if (!match.team1Id && !match.team2Id) {
                 return `
-                    <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                         <div class="flex items-center justify-between gap-3 text-gray-500">
                             ${formatTbdLine()}
                         </div>
-                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="h-px round-inner-divider"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-500">
                             ${formatTbdLine()}
                         </div>
@@ -2497,12 +2499,12 @@ async function renderPlayoffView(
                 `;
             }
             return `
-                <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${renderTeamName(team1Name, nameFormatter)}
                             ${renderInputs(1, [team1Score1, team1Score2, team1Score3], isFinal && bestOfThree, matchVersion)}
                         </div>
-                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="h-px round-inner-divider"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${renderTeamName(team2Name, nameFormatter)}
                             ${renderInputs(2, [team2Score1, team2Score2, team2Score3], isFinal && bestOfThree, matchVersion)}
@@ -2547,7 +2549,7 @@ async function renderPlayoffView(
 
             if (bronzeTeam1 || bronzeTeam2) {
                 bronzeHtml = `
-                    <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${renderTeamName(bronzeTeam1Name, bronzeNameFormatter)}
                             ${bronzeInputs(1, [
@@ -2556,7 +2558,7 @@ async function renderPlayoffView(
                                 bronzeScore ? bronzeScore.game3_score1 : null
                             ])}
                         </div>
-                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="h-px round-inner-divider"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-600">
                             ${renderTeamName(bronzeTeam2Name, bronzeNameFormatter)}
                             ${bronzeInputs(2, [
@@ -2569,11 +2571,11 @@ async function renderPlayoffView(
                 `;
             } else {
                 bronzeHtml = `
-                    <div class="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div class="round-inner-card bg-white border border-gray-200 rounded-lg p-3 space-y-2">
                         <div class="flex items-center justify-between gap-3 text-gray-500">
                             ${formatTbdLine()}
                         </div>
-                        <div class="h-px bg-ocean-blue/50"></div>
+                        <div class="h-px round-inner-divider"></div>
                         <div class="flex items-center justify-between gap-3 text-gray-500">
                             ${formatTbdLine()}
                         </div>
@@ -2597,7 +2599,7 @@ async function renderPlayoffView(
             : '';
 
         return `
-            <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3" style="background-color: ${theme.bg}; border-color: ${theme.border};">
+            <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start md:snap-center border rounded-xl p-3 ${theme.cardClass}" style="background-color: ${theme.bg}; border-color: ${theme.border};">
                 <h5 class="text-lg font-semibold ${theme.titleClass} mb-3">${playoffRoundLabel(bracketSize, roundNumber)}</h5>
                 ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mb-2">Gold Match</div>` : ''}
                 <div class="space-y-3">${matchesHtml || `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>`}</div>
