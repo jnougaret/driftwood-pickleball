@@ -182,9 +182,15 @@
                             </div>
                         </div>
 
-                        <p class="text-xs text-gray-500">
-                            To change linked DUPR data, re-authenticate using "Link DUPR Account".
-                        </p>
+                        <div class="pt-1">
+                            <button
+                                onclick="linkDuprAccount('relink-dupr-button')"
+                                id="relink-dupr-button"
+                                class="bg-ocean-blue text-white px-5 py-2 rounded-lg hover:bg-ocean-teal transition font-semibold"
+                            >
+                                Re-link DUPR Account
+                            </button>
+                        </div>
                     </div>
 
                     <div id="error-message" class="hidden p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -266,6 +272,7 @@
         let DUPR_ALLOWED_ORIGINS = new Set();
         let duprLinkInProgress = false;
         let duprMessageHandled = false;
+        let activeDuprButtonId = null;
 
         // Auth bootstrap (centralized in auth.js)
         document.addEventListener('DOMContentLoaded', async () => {
@@ -425,11 +432,17 @@
             modal.classList.add('hidden');
             iframe.src = '';
             duprLinkInProgress = false;
-            const button = document.getElementById('link-dupr-button');
-            if (button && (!window.duprLinked || window.duprLinked !== true)) {
-                button.disabled = false;
-                button.textContent = 'Link DUPR Account';
+            const linkButton = document.getElementById('link-dupr-button');
+            const relinkButton = document.getElementById('relink-dupr-button');
+            if (linkButton && (!window.duprLinked || window.duprLinked !== true)) {
+                linkButton.disabled = false;
+                linkButton.textContent = 'Link DUPR Account';
             }
+            if (relinkButton && window.duprLinked === true) {
+                relinkButton.disabled = false;
+                relinkButton.textContent = 'Re-link DUPR Account';
+            }
+            activeDuprButtonId = null;
         }
 
         function normalizeNumber(value) {
@@ -508,7 +521,7 @@
             }
 
             duprMessageHandled = true;
-            const button = document.getElementById('link-dupr-button');
+            const button = document.getElementById(activeDuprButtonId || 'link-dupr-button');
             if (button) {
                 button.disabled = true;
                 button.textContent = 'Linking...';
@@ -531,7 +544,9 @@
                 duprMessageHandled = false;
                 if (button) {
                     button.disabled = false;
-                    button.textContent = 'Link DUPR Account';
+                    button.textContent = activeDuprButtonId === 'relink-dupr-button'
+                        ? 'Re-link DUPR Account'
+                        : 'Link DUPR Account';
                 }
             }
         }
@@ -539,8 +554,10 @@
         window.addEventListener('message', handleDuprMessage, false);
 
         // Link DUPR account using DUPR external-app iframe flow
-        async function linkDuprAccount() {
-            const button = document.getElementById('link-dupr-button');
+        async function linkDuprAccount(buttonId = 'link-dupr-button') {
+            activeDuprButtonId = buttonId;
+            const button = document.getElementById(buttonId);
+            if (!button) return;
             button.disabled = true;
             button.textContent = 'Opening DUPR...';
             try {
@@ -550,7 +567,9 @@
                 console.error('Failed to initialize DUPR link:', error);
                 showError('Unable to initialize DUPR linking');
                 button.disabled = false;
-                button.textContent = 'Link DUPR Account';
+                button.textContent = buttonId === 'relink-dupr-button'
+                    ? 'Re-link DUPR Account'
+                    : 'Link DUPR Account';
             }
         }
 
