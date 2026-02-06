@@ -12,7 +12,7 @@ function getDuprBase(duprEnv) {
 function getTokenUrl(env, duprEnv) {
     const explicit = (env.DUPR_TOKEN_URL || '').trim();
     if (explicit) return explicit;
-    return `${getDuprBase(duprEnv)}/api/token`;
+    return `${getDuprBase(duprEnv)}/api/auth/v1.0/token`;
 }
 
 function getWebhookRegisterUrl(env, duprEnv) {
@@ -22,7 +22,9 @@ function getWebhookRegisterUrl(env, duprEnv) {
 }
 
 function getSubscribePlayerUrl(env, duprEnv) {
-    return (env.DUPR_SUBSCRIBE_PLAYER_URL || '').trim();
+    const explicit = (env.DUPR_SUBSCRIBE_PLAYER_URL || '').trim();
+    if (explicit) return explicit;
+    return `${getDuprBase(duprEnv)}/api/v1.0/subscribe/rating-changes`;
 }
 
 function normalizeTokenResponse(payload) {
@@ -180,10 +182,7 @@ export async function subscribePlayerRating(env, duprId) {
         };
     }
 
-    const payload = {
-        clientId: (env.DUPR_CLIENT_KEY || '').trim(),
-        duprId: trimmedDuprId
-    };
+    const payload = [trimmedDuprId];
 
     let response;
     try {
@@ -251,4 +250,3 @@ export async function upsertDuprSubscription(env, record) {
         asJson(record.lastResponse)
     ).run();
 }
-

@@ -61,7 +61,7 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
    - Set `DUPR_CLIENT_KEY=your_dupr_client_key`
    - Set `DUPR_CLIENT_SECRET=your_dupr_client_secret` (server-side only; not exposed to browser)
    - Optional: `DUPR_ENV=uat` (or `prod`)
-   - Optional: `DUPR_TOKEN_URL=https://uat.mydupr.com/api/token` (or your DUPR-provided token URL)
+   - Optional: `DUPR_TOKEN_URL=https://uat.mydupr.com/api/auth/v1.0/token` (or your DUPR-provided token URL)
    - Optional: `DUPR_BASIC_INFO_URL=https://api.uat.dupr.gg/public/getBasicInfo` (or your DUPR-provided URL)
    - Optional: `DUPR_WEBHOOK_URL=https://your-domain.com/api/dupr/webhook`
    - Optional: `DUPR_WEBHOOK_REGISTER_URL=https://uat.mydupr.com/api/v1.0/webhook` (or prod URL)

@@ -63,8 +63,8 @@ function getTokenUrl(env, duprEnv) {
     const explicit = (env.DUPR_TOKEN_URL || '').trim();
     if (explicit) return explicit;
     return duprEnv === 'prod'
-        ? 'https://prod.mydupr.com/api/token'
-        : 'https://uat.mydupr.com/api/token';
+        ? 'https://prod.mydupr.com/api/auth/v1.0/token'
+        : 'https://uat.mydupr.com/api/auth/v1.0/token';
 }
 
 function base64Encode(value) {
