@@ -99,6 +99,14 @@ function formatEntryFeeText(entryFeeAmount) {
     return `$${pretty} per player`;
 }
 
+function shouldShowResultsDuprBadge(tournament) {
+    if (!tournament) return false;
+    if (tournament.duprRequired === true) return true;
+    if (tournament.id === 'jan10') return true;
+    if (tournament.startDate === '2026-01-10' || tournament.startDate === '2026-01-24') return true;
+    return false;
+}
+
 // ========================================
 // RENDER UPCOMING TOURNAMENTS
 // ========================================
@@ -349,11 +357,15 @@ function createTournamentCard(tournament, type) {
             </div>
         `;
     } else if (type === 'results') {
+        const showDuprBadge = shouldShowResultsDuprBadge(tournament);
         card.className = `tournament-card ${themeClass}`;
         card.innerHTML = `
             <div class="card-header">
                 <h3 id="${tournament.id}-results-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
                 <p id="${tournament.id}-results-location" class="text-gray-200">${tournament.location}</p>
+                <div id="${tournament.id}-results-dupr-badge" class="dupr-badge ${showDuprBadge ? '' : 'hidden'}">
+                    <img src="/dupr-logo.png?v=20260206" alt="DUPR" loading="lazy" />
+                </div>
             </div>
             <div class="card-body">
                 <div id="${tournament.id}-results-details-display" class="space-y-3 mb-6">
@@ -633,6 +645,7 @@ function updateResultsCardDisplay(tournament) {
     const prizeEl = document.getElementById(`${tournament.id}-results-prize`);
     const photoWrap = document.getElementById(`${tournament.id}-photo-wrap`);
     const photoEl = document.getElementById(`${tournament.id}-photo`);
+    const duprBadge = document.getElementById(`${tournament.id}-results-dupr-badge`);
 
     if (titleEl) titleEl.textContent = tournament.title;
     if (locationEl) locationEl.textContent = tournament.location || 'Location TBD';
@@ -646,6 +659,9 @@ function updateResultsCardDisplay(tournament) {
     }
     if (photoEl && tournament.photoUrl) {
         photoEl.src = tournament.photoUrl;
+    }
+    if (duprBadge) {
+        duprBadge.classList.toggle('hidden', !shouldShowResultsDuprBadge(tournament));
     }
 }
 
