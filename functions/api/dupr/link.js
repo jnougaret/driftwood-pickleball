@@ -1,4 +1,8 @@
 import { verifyClerkToken } from '../_auth.js';
+import {
+    subscribePlayerRating,
+    upsertDuprSubscription
+} from './_partner.js';
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -178,8 +182,25 @@ export async function onRequestPost({ request, env }) {
         'SELECT * FROM users WHERE id = ?'
     ).bind(auth.userId).first();
 
+    // Best-effort DUPR rating webhook subscription for this linked user.
+    // Subscription failures should not block account linking.
+    const subscription = await subscribePlayerRating(env, duprId);
+    await upsertDuprSubscription(env, {
+        userId: auth.userId,
+        duprId,
+        topic: 'RATING',
+        duprEnv: subscription.environment || duprEnv,
+        status: subscription.ok ? 'subscribed' : (subscription.skipped ? 'skipped' : 'failed'),
+        lastHttpStatus: subscription.status || null,
+        lastResponse: subscription.response || subscription.error || null
+    });
+
     return jsonResponse({
         success: true,
+        duprSubscription: {
+            status: subscription.ok ? 'subscribed' : (subscription.skipped ? 'skipped' : 'failed'),
+            details: subscription.ok ? null : (subscription.error || subscription.response || null)
+        },
         profile: {
             id: result.id,
             email: result.email,
@@ -194,4 +215,3 @@ export async function onRequestPost({ request, env }) {
         }
     });
 }
-

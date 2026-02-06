@@ -240,3 +240,50 @@ CREATE TABLE admin_allowlist (
 );
 
 CREATE INDEX idx_admin_allowlist_created_at ON admin_allowlist(created_at);
+
+-- DUPR webhook ingestion events (raw payloads from DUPR callbacks)
+CREATE TABLE dupr_webhook_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id TEXT,
+  topic TEXT,
+  event TEXT,
+  payload TEXT NOT NULL,
+  processed INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_dupr_webhook_events_topic ON dupr_webhook_events(topic);
+CREATE INDEX idx_dupr_webhook_events_event ON dupr_webhook_events(event);
+CREATE INDEX idx_dupr_webhook_events_created_at ON dupr_webhook_events(created_at);
+
+-- DUPR player rating subscription tracking for each linked user
+CREATE TABLE dupr_player_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  dupr_id TEXT NOT NULL,
+  topic TEXT NOT NULL DEFAULT 'RATING',
+  dupr_env TEXT NOT NULL DEFAULT 'uat',
+  status TEXT NOT NULL,
+  last_http_status INTEGER,
+  last_response TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, dupr_id, topic, dupr_env)
+);
+
+CREATE INDEX idx_dupr_player_subscriptions_user ON dupr_player_subscriptions(user_id);
+CREATE INDEX idx_dupr_player_subscriptions_dupr_id ON dupr_player_subscriptions(dupr_id);
+CREATE INDEX idx_dupr_player_subscriptions_status ON dupr_player_subscriptions(status);
+
+-- DUPR webhook registration audit history
+CREATE TABLE dupr_webhook_registrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_by TEXT NOT NULL,
+  webhook_url TEXT NOT NULL,
+  topics_json TEXT NOT NULL,
+  status_code INTEGER,
+  response TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_dupr_webhook_registrations_created_at ON dupr_webhook_registrations(created_at);

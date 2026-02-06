@@ -63,6 +63,9 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
    - Optional: `DUPR_ENV=uat` (or `prod`)
    - Optional: `DUPR_TOKEN_URL=https://uat.mydupr.com/api/token` (or your DUPR-provided token URL)
    - Optional: `DUPR_BASIC_INFO_URL=https://api.uat.dupr.gg/public/getBasicInfo` (or your DUPR-provided URL)
+   - Optional: `DUPR_WEBHOOK_URL=https://your-domain.com/api/dupr/webhook`
+   - Optional: `DUPR_WEBHOOK_REGISTER_URL=https://uat.mydupr.com/api/v1.0/webhook` (or prod URL)
+   - Optional: `DUPR_SUBSCRIBE_PLAYER_URL=<DUPR subscribe-player-rating endpoint URL>`
 
 2. **Run Pages dev server**
    ```bash
@@ -95,6 +98,31 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
 - Accepts `userToken` from DUPR iframe login event.
 - Calls DUPR basic info API using `Authorization: Bearer <userToken>`.
 - Returns DUPR profile payload for account-link enrichment.
+
+### DUPR webhook receiver
+
+`GET|POST /api/dupr/webhook`
+
+- Always returns `200 OK` (required by DUPR registration/webhook checks).
+- Persists incoming webhook payloads into `dupr_webhook_events`.
+- Use this URL when registering your webhook with DUPR.
+
+### DUPR webhook registration endpoint (admin)
+
+`POST /api/dupr/webhook-register`
+
+- Requires Clerk auth.
+- Requires master-admin account (`MASTER_ADMIN_EMAIL`).
+- Registers your webhook with DUPR using partner credentials.
+- Request body (optional):
+  - `webhookUrl` (defaults to `DUPR_WEBHOOK_URL`)
+  - `topics` (defaults to `["RATING","REGISTRATION"]`)
+
+### DUPR player rating subscriptions
+
+- On successful `/api/dupr/link`, the backend attempts a best-effort DUPR player-rating subscription.
+- Subscription status is tracked in `dupr_player_subscriptions`.
+- Set `DUPR_SUBSCRIBE_PLAYER_URL` to your DUPR-provided subscribe endpoint.
 
 ## Deployment to Cloudflare Pages
 
