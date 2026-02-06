@@ -135,13 +135,6 @@ export async function onRequestGet({ request, env }) {
             });
         }
 
-        const token = await fetchPartnerAccessToken(env);
-        if (!token.ok) {
-            return jsonResponse({
-                error: token.error || 'Unable to fetch partner token',
-                details: token.response || null
-            }, 502);
-        }
         if (debug === 'token' || debug === 'token-config') {
             const duprEnv = getDuprEnv(env);
             return jsonResponse({
@@ -155,12 +148,12 @@ export async function onRequestGet({ request, env }) {
         }
 
         if (debug === 'token-fetch') {
-            const token = await fetchPartnerAccessToken(env);
+            const tokenFetch = await fetchPartnerAccessToken(env);
             return jsonResponse({
-                success: token.ok === true,
+                success: tokenFetch.ok === true,
                 stage: 'token-fetch',
-                tokenResult: token
-            }, token.ok ? 200 : 502);
+                tokenResult: tokenFetch
+            }, tokenFetch.ok ? 200 : 502);
         }
 
         const token = await fetchPartnerAccessToken(env);
