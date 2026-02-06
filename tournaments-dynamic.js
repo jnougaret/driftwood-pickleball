@@ -139,6 +139,7 @@ function renderUpcomingTournaments() {
     const tournaments = getUpcomingTournaments();
     if (!tournaments.length) {
         container.innerHTML = '<p class="text-sm text-gray-500">No upcoming tournaments yet.</p>';
+        requestAnimationFrame(updateTournamentsCarouselArrows);
         return;
     }
 
@@ -146,6 +147,57 @@ function renderUpcomingTournaments() {
         const card = createTournamentCard(tournament, 'upcoming');
         container.appendChild(card);
     });
+    requestAnimationFrame(updateTournamentsCarouselArrows);
+}
+
+function scrollTournamentsCarousel(direction) {
+    const container = document.getElementById('tournaments-container');
+    if (!container) return;
+    const delta = Math.max(container.clientWidth * 0.82, 280);
+    const left = direction === 'left' ? -delta : delta;
+    container.scrollBy({ left, behavior: 'smooth' });
+}
+
+function updateTournamentsCarouselArrows() {
+    const container = document.getElementById('tournaments-container');
+    const leftButtons = [
+        document.getElementById('tournaments-scroll-left'),
+        document.getElementById('tournaments-scroll-left-mobile')
+    ].filter(Boolean);
+    const rightButtons = [
+        document.getElementById('tournaments-scroll-right'),
+        document.getElementById('tournaments-scroll-right-mobile')
+    ].filter(Boolean);
+    if (!container || leftButtons.length === 0 || rightButtons.length === 0) return;
+
+    const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    const current = container.scrollLeft;
+    const edgeTolerance = 2;
+    const hasOverflow = maxLeft > edgeTolerance;
+    const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+    const cardCount = container.querySelectorAll('.tournament-card').length;
+    const shouldCenter = isDesktop && cardCount > 0 && cardCount <= 2;
+
+    const disableLeft = current <= edgeTolerance;
+    const disableRight = current >= (maxLeft - edgeTolerance);
+
+    container.classList.toggle('tournaments-centered', shouldCenter || (!hasOverflow && isDesktop));
+
+    leftButtons.forEach(button => {
+        button.disabled = disableLeft;
+    });
+    rightButtons.forEach(button => {
+        button.disabled = disableRight;
+    });
+}
+
+function ensureTournamentsCarouselBindings() {
+    const container = document.getElementById('tournaments-container');
+    if (!container || container.dataset.arrowBindings === 'true') return;
+
+    container.dataset.arrowBindings = 'true';
+    container.addEventListener('scroll', updateTournamentsCarouselArrows, { passive: true });
+    window.addEventListener('resize', updateTournamentsCarouselArrows);
 }
 
 // ========================================
@@ -241,6 +293,7 @@ function ensureResultsCarouselBindings() {
 }
 
 window.scrollResultsCarousel = scrollResultsCarousel;
+window.scrollTournamentsCarousel = scrollTournamentsCarousel;
 
 // ========================================
 // CREATE TOURNAMENT CARD
@@ -3681,6 +3734,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     renderUpcomingTournaments();
     renderResults();
+    ensureTournamentsCarouselBindings();
+    requestAnimationFrame(updateTournamentsCarouselArrows);
     ensureResultsCarouselBindings();
     requestAnimationFrame(updateResultsCarouselArrows);
     refreshAdminDetailEditors();

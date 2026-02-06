@@ -272,6 +272,7 @@
             }
         }
 
+        #tournaments-carousel,
         #results-carousel {
             max-width: 1120px;
             margin: 0 auto;
@@ -282,6 +283,7 @@
             position: relative;
         }
 
+        #tournaments-arrows-mobile,
         #results-arrows-mobile {
             display: none;
         }
@@ -313,6 +315,7 @@
             background: var(--sand-50);
         }
 
+        #tournaments-container,
         #results-container {
             align-items: flex-start !important;
             display: flex;
@@ -327,25 +330,30 @@
             max-width: 100%;
         }
 
+        #tournaments-container.tournaments-centered,
         #results-container.results-centered {
             justify-content: center !important;
         }
 
+        #tournaments-container .tournament-card,
         #results-container .tournament-card {
             flex: 0 0 min(90vw, 350px);
             width: min(90vw, 350px);
             scroll-snap-align: start;
         }
 
+        #tournaments-container::-webkit-scrollbar,
         #results-container::-webkit-scrollbar {
             height: 10px;
         }
 
+        #tournaments-container::-webkit-scrollbar-track,
         #results-container::-webkit-scrollbar-track {
             background: #d1d5db;
             border-radius: 999px;
         }
 
+        #tournaments-container::-webkit-scrollbar-thumb,
         #results-container::-webkit-scrollbar-thumb {
             background: #1a3a52;
             border-radius: 999px;
@@ -353,24 +361,29 @@
         }
 
         @media (max-width: 767px) {
+            #tournaments-carousel,
             #results-carousel {
                 display: block;
                 gap: 0;
             }
 
+            #tournaments-container,
             #results-container {
                 gap: 0.75rem;
             }
 
+            #tournaments-container .tournament-card,
             #results-container .tournament-card {
                 flex: 0 0 100%;
                 width: 100%;
             }
 
+            #tournaments-carousel > .results-arrow,
             #results-carousel > .results-arrow {
                 display: none;
             }
 
+            #tournaments-arrows-mobile,
             #results-arrows-mobile {
                 margin-top: 0.6rem;
                 display: flex;
@@ -506,8 +519,48 @@
     <section id="tournaments" class="py-16 bg-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Tournaments</h2>
-            <div id="tournaments-container" class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
-                <!-- Tournaments auto-generated from API -->
+            <div id="tournaments-carousel">
+                <button
+                    type="button"
+                    id="tournaments-scroll-left"
+                    class="results-arrow"
+                    aria-label="Scroll tournaments left"
+                    onclick="scrollTournamentsCarousel('left')"
+                >
+                    &#8249;
+                </button>
+                <div id="tournaments-container">
+                    <!-- Tournaments auto-generated from API -->
+                </div>
+                <button
+                    type="button"
+                    id="tournaments-scroll-right"
+                    class="results-arrow"
+                    aria-label="Scroll tournaments right"
+                    onclick="scrollTournamentsCarousel('right')"
+                >
+                    &#8250;
+                </button>
+                <div id="tournaments-arrows-mobile">
+                    <button
+                        type="button"
+                        id="tournaments-scroll-left-mobile"
+                        class="results-arrow"
+                        aria-label="Scroll tournaments left"
+                        onclick="scrollTournamentsCarousel('left')"
+                    >
+                        &#8249;
+                    </button>
+                    <button
+                        type="button"
+                        id="tournaments-scroll-right-mobile"
+                        class="results-arrow"
+                        aria-label="Scroll tournaments right"
+                        onclick="scrollTournamentsCarousel('right')"
+                    >
+                        &#8250;
+                    </button>
+                </div>
             </div>
         </div>
     </section>
