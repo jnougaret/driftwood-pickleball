@@ -92,7 +92,12 @@ export async function onRequestGet({ env, params }) {
 
     const status = await getTournamentStatus(env, tournamentId);
     if (status !== 'tournament') {
-        return jsonResponse({ status });
+        const matches = await listMatches(env, tournamentId);
+        if (!matches.length) {
+            return jsonResponse({ status });
+        }
+        const teams = await listTeams(env, tournamentId);
+        return jsonResponse({ status, matches, teams });
     }
 
     const matches = await listMatches(env, tournamentId);

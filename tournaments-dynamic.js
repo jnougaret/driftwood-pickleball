@@ -132,6 +132,7 @@ function renderResults() {
     container.innerHTML = ''; // Clear existing content
     
     const tournaments = getResultsTournaments();
+    cleanupResultsViewStateStorage(tournaments);
     if (!tournaments.length) {
         container.innerHTML = '<p class="text-sm text-gray-500">No completed results yet.</p>';
         return;
@@ -456,25 +457,69 @@ function createTournamentCard(tournament, type) {
             
             <!-- Expandable Results -->
             <div id="${tournament.id}-results" class="hidden border-t-2 border-gray-200">
-                <!-- Winner Photo -->
-                <div id="${tournament.id}-photo-wrap" class="p-6 pb-0 bg-gray-50 ${tournament.photoUrl ? '' : 'hidden'}">
-                    <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
-                    <div class="text-center mb-0">
-                        <img 
-                            id="${tournament.id}-photo" 
-                            src="${tournament.photoUrl || ''}" 
-                            alt="Tournament Champions" 
-                            class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
-                            style="max-height: 400px; display: block;"
+                <div id="${tournament.id}-results-summary">
+                    <!-- Winner Photo -->
+                    <div id="${tournament.id}-photo-wrap" class="p-6 pb-0 bg-gray-50 ${tournament.photoUrl ? '' : 'hidden'}">
+                        <h4 class="text-xl font-bold text-ocean-blue mb-4 text-center">🏆 Champions</h4>
+                        <div class="text-center mb-0">
+                            <img 
+                                id="${tournament.id}-photo" 
+                                src="${tournament.photoUrl || ''}" 
+                                alt="Tournament Champions" 
+                                class="mx-auto rounded-lg shadow-lg max-w-full h-auto"
+                                style="max-height: 400px; display: block;"
+                            >
+                        </div>
+                    </div>
+                    
+                    <!-- Bracket -->
+                    <div class="p-6 pb-0">
+                        <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
+                        <div id="${tournament.id}-bracket" class="bracket-container">
+                            <!-- Bracket loads here -->
+                        </div>
+                    </div>
+                    <div class="p-6 pt-4">
+                        <button
+                            onclick="showFullResults('${tournament.id}', 'roundRobin')"
+                            class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
                         >
+                            View Full Results
+                        </button>
                     </div>
                 </div>
-                
-                <!-- Bracket -->
-                <div class="p-6 pb-0">
-                    <h4 class="text-xl font-bold text-ocean-blue mb-2">Playoff Bracket</h4>
-                    <div id="${tournament.id}-bracket" class="bracket-container">
-                        <!-- Bracket loads here -->
+
+                <div id="${tournament.id}-results-full" class="hidden p-6 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <button
+                            onclick="showResultsSummary('${tournament.id}')"
+                            class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                        >
+                            View Results Summary
+                        </button>
+                        <div class="flex items-center gap-2">
+                            <button
+                                id="${tournament.id}-full-round-robin-button"
+                                onclick="showFullResults('${tournament.id}', 'roundRobin')"
+                                class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold transition"
+                            >
+                                Round Robin
+                            </button>
+                            <button
+                                id="${tournament.id}-full-playoff-button"
+                                onclick="showFullResults('${tournament.id}', 'playoff')"
+                                class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
+                            >
+                                Playoff
+                            </button>
+                        </div>
+                    </div>
+                    <div id="${tournament.id}-tournament-view" class="tournament-view-block">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
+                            <div id="${tournament.id}-tournament-actions" class="hidden"></div>
+                        </div>
+                        <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-2 md:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
                     </div>
                 </div>
             </div>
@@ -1668,6 +1713,9 @@ async function renderTournamentView(tournamentId, options = {}) {
     const view = document.getElementById(`${tournamentId}-tournament-view`);
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     if (!view || !roundsContainer) return;
+    const allowNonTournament = options.allowNonTournament === true;
+    const forceSection = options.forceSection === 'playoff' ? 'playoff' : (options.forceSection === 'roundRobin' ? 'roundRobin' : null);
+    const readOnly = options.readOnly === true;
     if (!options.force) {
         const activeEl = document.activeElement;
         if (activeEl && activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
@@ -1683,7 +1731,7 @@ async function renderTournamentView(tournamentId, options = {}) {
 
     try {
         const data = await fetchRoundRobin(tournamentId);
-        if (data.status !== 'tournament') {
+        if (data.status !== 'tournament' && !allowNonTournament) {
             view.classList.add('hidden');
             return;
         }
@@ -1707,9 +1755,11 @@ async function renderTournamentView(tournamentId, options = {}) {
         const hasAdminTournamentAction = Boolean(
             document.getElementById(`${tournamentId}-tournament-actions`)?.querySelector('button')
         );
-        const isAdmin = Boolean((window.authProfile && window.authProfile.isAdmin) || hasAdminTournamentAction);
+        const isAdmin = readOnly
+            ? false
+            : Boolean((window.authProfile && window.authProfile.isAdmin) || hasAdminTournamentAction);
         const title = document.getElementById(`${tournamentId}-tournament-title`);
-        if (playoff && playoff.status === 'playoff') {
+        if (playoff && playoff.status === 'playoff' && forceSection !== 'roundRobin') {
             if (title) {
                 title.textContent = 'Playoffs';
             }
@@ -1717,6 +1767,15 @@ async function renderTournamentView(tournamentId, options = {}) {
             const preserveScroll = options.preserveScroll === true && !resetScroll;
             const currentScrollLeft = preserveScroll ? roundsContainer.scrollLeft : null;
             renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll, currentScrollLeft);
+            return;
+        }
+        if (forceSection === 'playoff') {
+            roundsContainer.innerHTML = `
+                <div class="min-w-[calc(100%-0.5rem)] md:min-w-[290px] snap-start border rounded-xl p-3 bg-white border-gray-200">
+                    <div class="text-sm text-gray-600">No playoff data found for this tournament.</div>
+                </div>
+            `;
+            applyRoundCardLayout(roundsContainer);
             return;
         }
         if (title) {
@@ -2967,6 +3026,43 @@ async function removePlayer(tournamentId, userId) {
 // RESULTS MANAGEMENT
 // ========================================
 
+const RESULTS_VIEW_STATE_PREFIX = 'results-view-state-';
+
+function resultsViewStateKey(tournamentId) {
+    return `${RESULTS_VIEW_STATE_PREFIX}${tournamentId}`;
+}
+
+function getSavedResultsViewState(tournamentId) {
+    const value = localStorage.getItem(resultsViewStateKey(tournamentId));
+    if (value === 'roundRobin' || value === 'playoff' || value === 'summary') {
+        return value;
+    }
+    return 'summary';
+}
+
+function saveResultsViewState(tournamentId, state) {
+    localStorage.setItem(resultsViewStateKey(tournamentId), state);
+}
+
+function cleanupResultsViewStateStorage(resultsTournaments = []) {
+    const validIds = new Set((resultsTournaments || []).map(t => t.id));
+    const keysToDelete = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith(RESULTS_VIEW_STATE_PREFIX)) continue;
+        const tournamentId = key.slice(RESULTS_VIEW_STATE_PREFIX.length);
+        const value = localStorage.getItem(key);
+        if (!validIds.has(tournamentId)) {
+            keysToDelete.push(key);
+            continue;
+        }
+        if (value !== 'summary' && value !== 'roundRobin' && value !== 'playoff') {
+            localStorage.setItem(key, 'summary');
+        }
+    }
+    keysToDelete.forEach(key => localStorage.removeItem(key));
+}
+
 function toggleResults(tournamentId) {
     const resultsDiv = document.getElementById(`${tournamentId}-results`);
     const buttonText = document.getElementById(`${tournamentId}-button-text`);
@@ -2982,10 +3078,64 @@ function toggleResults(tournamentId) {
             loadTournamentBracket(tournamentId);
             resultsDiv.dataset.loaded = 'true';
         }
+        const savedState = getSavedResultsViewState(tournamentId);
+        if (savedState === 'roundRobin' || savedState === 'playoff') {
+            showFullResults(tournamentId, savedState);
+        } else {
+            showResultsSummary(tournamentId);
+        }
     } else {
         resultsDiv.classList.add('hidden');
         buttonText.textContent = 'View Results';
     }
+}
+
+function setFullResultsTabState(tournamentId, section) {
+    const roundRobinButton = document.getElementById(`${tournamentId}-full-round-robin-button`);
+    const playoffButton = document.getElementById(`${tournamentId}-full-playoff-button`);
+    if (!roundRobinButton || !playoffButton) return;
+    const isRoundRobin = section === 'roundRobin';
+    roundRobinButton.classList.toggle('bg-ocean-blue', isRoundRobin);
+    roundRobinButton.classList.toggle('text-white', isRoundRobin);
+    roundRobinButton.classList.toggle('bg-white', !isRoundRobin);
+    roundRobinButton.classList.toggle('border', !isRoundRobin);
+    roundRobinButton.classList.toggle('border-ocean-blue', !isRoundRobin);
+    roundRobinButton.classList.toggle('text-ocean-blue', !isRoundRobin);
+    roundRobinButton.classList.toggle('hover:bg-gray-100', !isRoundRobin);
+
+    playoffButton.classList.toggle('bg-ocean-blue', !isRoundRobin);
+    playoffButton.classList.toggle('text-white', !isRoundRobin);
+    playoffButton.classList.toggle('bg-white', isRoundRobin);
+    playoffButton.classList.toggle('border', isRoundRobin);
+    playoffButton.classList.toggle('border-ocean-blue', isRoundRobin);
+    playoffButton.classList.toggle('text-ocean-blue', isRoundRobin);
+    playoffButton.classList.toggle('hover:bg-gray-100', isRoundRobin);
+}
+
+async function showFullResults(tournamentId, section = 'roundRobin') {
+    const summary = document.getElementById(`${tournamentId}-results-summary`);
+    const full = document.getElementById(`${tournamentId}-results-full`);
+    if (!summary || !full) return;
+    summary.classList.add('hidden');
+    full.classList.remove('hidden');
+    const mode = section === 'playoff' ? 'playoff' : 'roundRobin';
+    saveResultsViewState(tournamentId, mode);
+    setFullResultsTabState(tournamentId, mode);
+    await renderTournamentView(tournamentId, {
+        force: true,
+        allowNonTournament: true,
+        readOnly: true,
+        forceSection: mode
+    });
+}
+
+function showResultsSummary(tournamentId) {
+    const summary = document.getElementById(`${tournamentId}-results-summary`);
+    const full = document.getElementById(`${tournamentId}-results-full`);
+    if (!summary || !full) return;
+    full.classList.add('hidden');
+    summary.classList.remove('hidden');
+    saveResultsViewState(tournamentId, 'summary');
 }
 
 async function loadTournamentBracket(tournamentId) {
