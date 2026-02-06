@@ -490,7 +490,7 @@ function createTournamentCard(tournament, type) {
                 </div>
 
                 <div id="${tournament.id}-results-full" class="hidden p-6 space-y-4">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 mb-2">
                         <button
                             id="${tournament.id}-full-round-robin-button"
                             onclick="showFullResults('${tournament.id}', 'roundRobin')"
@@ -3110,6 +3110,7 @@ function setFullResultsTabState(tournamentId, section) {
 async function showFullResults(tournamentId, section = 'roundRobin') {
     const summary = document.getElementById(`${tournamentId}-results-summary`);
     const full = document.getElementById(`${tournamentId}-results-full`);
+    const resultsRoot = document.getElementById(`${tournamentId}-results`);
     if (!summary || !full) return;
     summary.classList.add('hidden');
     full.classList.remove('hidden');
@@ -3126,6 +3127,11 @@ async function showFullResults(tournamentId, section = 'roundRobin') {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     if (roundsContainer) {
         roundsContainer.scrollLeft = 0;
+    }
+    if (resultsRoot) {
+        requestAnimationFrame(() => {
+            resultsRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }
 }
 
