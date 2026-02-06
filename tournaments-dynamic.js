@@ -479,7 +479,7 @@ function createTournamentCard(tournament, type) {
                             <!-- Bracket loads here -->
                         </div>
                     </div>
-                    <div class="p-6 pt-4">
+                    <div id="${tournament.id}-full-results-action" class="p-6 pt-4">
                         <button
                             onclick="showFullResults('${tournament.id}', 'roundRobin')"
                             class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
@@ -490,37 +490,31 @@ function createTournamentCard(tournament, type) {
                 </div>
 
                 <div id="${tournament.id}-results-full" class="hidden p-6 space-y-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
                         <button
-                            onclick="showResultsSummary('${tournament.id}')"
+                            id="${tournament.id}-full-round-robin-button"
+                            onclick="showFullResults('${tournament.id}', 'roundRobin')"
+                            class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold transition"
+                        >
+                            Round Robin
+                        </button>
+                        <button
+                            id="${tournament.id}-full-playoff-button"
+                            onclick="showFullResults('${tournament.id}', 'playoff')"
                             class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
                         >
-                            View Results Summary
+                            Playoff
                         </button>
-                        <div class="flex items-center gap-2">
-                            <button
-                                id="${tournament.id}-full-round-robin-button"
-                                onclick="showFullResults('${tournament.id}', 'roundRobin')"
-                                class="bg-ocean-blue text-white px-3 py-2 rounded-lg text-sm font-semibold transition"
-                            >
-                                Round Robin
-                            </button>
-                            <button
-                                id="${tournament.id}-full-playoff-button"
-                                onclick="showFullResults('${tournament.id}', 'playoff')"
-                                class="bg-white border border-ocean-blue text-ocean-blue hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold transition"
-                            >
-                                Playoff
-                            </button>
-                        </div>
                     </div>
                     <div id="${tournament.id}-tournament-view" class="tournament-view-block">
-                        <div class="flex items-center justify-between mb-4">
-                            <h4 class="text-xl font-bold text-ocean-blue" id="${tournament.id}-tournament-title">Round Robin</h4>
-                            <div id="${tournament.id}-tournament-actions" class="hidden"></div>
-                        </div>
                         <div id="${tournament.id}-rounds-container" class="rounds-scroll flex gap-2 md:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"></div>
                     </div>
+                    <button
+                        onclick="showResultsSummary('${tournament.id}')"
+                        class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
+                    >
+                        View Results Summary
+                    </button>
                 </div>
             </div>
         `;
@@ -3063,7 +3057,7 @@ function cleanupResultsViewStateStorage(resultsTournaments = []) {
     keysToDelete.forEach(key => localStorage.removeItem(key));
 }
 
-function toggleResults(tournamentId) {
+async function toggleResults(tournamentId) {
     const resultsDiv = document.getElementById(`${tournamentId}-results`);
     const buttonText = document.getElementById(`${tournamentId}-button-text`);
     
@@ -3075,11 +3069,12 @@ function toggleResults(tournamentId) {
         
         // Load bracket if not already loaded
         if (!resultsDiv.dataset.loaded) {
-            loadTournamentBracket(tournamentId);
+            await loadTournamentBracket(tournamentId);
             resultsDiv.dataset.loaded = 'true';
         }
         const savedState = getSavedResultsViewState(tournamentId);
-        if (savedState === 'roundRobin' || savedState === 'playoff') {
+        const fullResultsAvailable = resultsDiv.dataset.fullResultsAvailable !== 'false';
+        if (fullResultsAvailable && (savedState === 'roundRobin' || savedState === 'playoff')) {
             showFullResults(tournamentId, savedState);
         } else {
             showResultsSummary(tournamentId);
@@ -3125,8 +3120,13 @@ async function showFullResults(tournamentId, section = 'roundRobin') {
         force: true,
         allowNonTournament: true,
         readOnly: true,
-        forceSection: mode
+        forceSection: mode,
+        scrollToRound: 0
     });
+    const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
+    if (roundsContainer) {
+        roundsContainer.scrollLeft = 0;
+    }
 }
 
 function showResultsSummary(tournamentId) {
@@ -3141,13 +3141,45 @@ function showResultsSummary(tournamentId) {
 async function loadTournamentBracket(tournamentId) {
     const tournament = getResultsTournaments().find(t => t.id === tournamentId);
     if (!tournament) return;
+    const resultsDiv = document.getElementById(`${tournamentId}-results`);
+    const fullView = document.getElementById(`${tournamentId}-results-full`);
 
     const photoWrap = document.getElementById(`${tournamentId}-photo-wrap`);
     if (photoWrap && !tournament.photoUrl) {
         photoWrap.classList.add('hidden');
     }
 
+    const fullResultsAction = document.getElementById(`${tournamentId}-full-results-action`);
     const legacy = LEGACY_RESULTS_DATA[tournamentId];
+
+    try {
+        const rrData = await fetchRoundRobin(tournamentId);
+        const hasRoundRobinData = Array.isArray(rrData.matches) && rrData.matches.length > 0;
+        if (resultsDiv) {
+            resultsDiv.dataset.fullResultsAvailable = hasRoundRobinData ? 'true' : 'false';
+        }
+        if (fullResultsAction) {
+            fullResultsAction.classList.toggle('hidden', !hasRoundRobinData);
+        }
+        if (!hasRoundRobinData) {
+            saveResultsViewState(tournamentId, 'summary');
+            if (fullView && !fullView.classList.contains('hidden')) {
+                showResultsSummary(tournamentId);
+            }
+        }
+    } catch (error) {
+        if (resultsDiv) {
+            resultsDiv.dataset.fullResultsAvailable = 'false';
+        }
+        if (fullResultsAction) {
+            fullResultsAction.classList.add('hidden');
+        }
+        saveResultsViewState(tournamentId, 'summary');
+        if (fullView && !fullView.classList.contains('hidden')) {
+            showResultsSummary(tournamentId);
+        }
+    }
+
     if (legacy && Array.isArray(legacy.matches) && legacy.matches.length) {
         renderBracket(tournamentId, legacy);
         return;
