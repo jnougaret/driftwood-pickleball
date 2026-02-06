@@ -71,6 +71,25 @@ function formatDateLabel(startDate) {
     return `${monthLabel} ${day}`;
 }
 
+function formatLongDateLabel(startDate) {
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return null;
+    const [yearRaw, monthRaw, dayRaw] = startDate.split('-');
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+    const dt = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(dt.getTime())) return null;
+    const monthLabel = dt.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+    return `${monthLabel} ${day}, ${year}`;
+}
+
+function formatResultsDateLocation(startDate, location) {
+    const dateText = formatLongDateLabel(startDate) || 'Date TBD';
+    const locationText = (location || 'Location TBD').trim();
+    return `${dateText} @ ${locationText}`;
+}
+
 function formatStartLine(startDate, startTimeEt, fallback) {
     const time = formatTimeLabel(startTimeEt);
     const date = formatDateLabel(startDate);
@@ -362,7 +381,7 @@ function createTournamentCard(tournament, type) {
         card.innerHTML = `
             <div class="card-header">
                 <h3 id="${tournament.id}-results-title" class="text-2xl font-bold mb-2">${tournament.title}</h3>
-                <p id="${tournament.id}-results-location" class="text-gray-200">${tournament.location}</p>
+                <p id="${tournament.id}-results-location" class="text-gray-200">${formatResultsDateLocation(tournament.startDate, tournament.location)}</p>
                 <div id="${tournament.id}-results-dupr-badge" class="dupr-badge ${showDuprBadge ? '' : 'hidden'}">
                     <img src="/dupr-logo.png?v=20260206" alt="DUPR" loading="lazy" />
                 </div>
@@ -648,7 +667,7 @@ function updateResultsCardDisplay(tournament) {
     const duprBadge = document.getElementById(`${tournament.id}-results-dupr-badge`);
 
     if (titleEl) titleEl.textContent = tournament.title;
-    if (locationEl) locationEl.textContent = tournament.location || 'Location TBD';
+    if (locationEl) locationEl.textContent = formatResultsDateLocation(tournament.startDate, tournament.location);
     if (formatEl) formatEl.textContent = formatFormatType(tournament.formatType);
     if (skillEl) skillEl.textContent = formatSkillText(tournament.skillLevelCap);
     if (feeEl) feeEl.textContent = formatEntryFeeText(tournament.entryFeeAmount);
