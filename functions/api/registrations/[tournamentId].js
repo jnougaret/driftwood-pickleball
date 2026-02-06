@@ -88,6 +88,13 @@ async function getMaxTeams(env, tournamentId) {
     return settings?.max_teams ?? 12;
 }
 
+async function isDuprRequired(env, tournamentId) {
+    const settings = await env.DB.prepare(
+        'SELECT dupr_required FROM tournament_settings WHERE tournament_id = ?'
+    ).bind(tournamentId).first();
+    return settings?.dupr_required === 1;
+}
+
 async function getTournamentStatus(env, tournamentId) {
     const state = await env.DB.prepare(
         'SELECT status FROM tournament_state WHERE tournament_id = ?'
@@ -261,12 +268,13 @@ export async function onRequestPost({ request, env, params }) {
             return jsonResponse({ error: 'Registration is full' }, 400);
         }
 
+        const duprRequired = await isDuprRequired(env, tournamentId);
         const profile = await getUserProfile(env, userId);
         if (!profile) {
             return jsonResponse({ error: 'Profile required before registering' }, 400);
         }
-        if (!profile.dupr_id) {
-            return jsonResponse({ error: 'DUPR account must be linked before registering' }, 400);
+        if (duprRequired && !profile.dupr_id) {
+            return jsonResponse({ error: 'DUPR account must be linked for DUPR-reported events' }, 400);
         }
 
         const existing = await findUserTeam(env, tournamentId, userId);
