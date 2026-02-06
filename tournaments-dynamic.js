@@ -479,7 +479,7 @@ function createTournamentCard(tournament, type) {
                             <!-- Bracket loads here -->
                         </div>
                     </div>
-                    <div id="${tournament.id}-full-results-action" class="p-6 pt-4">
+                    <div id="${tournament.id}-full-results-action" class="p-6 pt-2">
                         <button
                             onclick="showFullResults('${tournament.id}', 'roundRobin')"
                             class="block w-full text-center font-semibold py-3 rounded-lg transition ${btnClass}"
@@ -489,7 +489,7 @@ function createTournamentCard(tournament, type) {
                     </div>
                 </div>
 
-                <div id="${tournament.id}-results-full" class="hidden p-6 space-y-4">
+                <div id="${tournament.id}-results-full" class="hidden p-6 space-y-2">
                     <div class="flex items-center gap-2 mb-4">
                         <button
                             id="${tournament.id}-full-round-robin-button"
