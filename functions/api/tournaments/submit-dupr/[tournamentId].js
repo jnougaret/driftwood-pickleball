@@ -1,4 +1,4 @@
-import { verifyClerkToken } from '../../../_auth.js';
+import { verifyClerkToken } from '../../_auth.js';
 import { fetchPartnerAccessToken, getDuprEnv, getDuprBase } from '../../dupr/_partner.js';
 
 function jsonResponse(body, status = 200) {
