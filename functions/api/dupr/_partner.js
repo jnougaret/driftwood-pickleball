@@ -1,9 +1,9 @@
-function getDuprEnv(env) {
+export function getDuprEnv(env) {
     const requested = String(env.DUPR_ENV || 'uat').toLowerCase();
     return requested === 'prod' ? 'prod' : 'uat';
 }
 
-function getDuprBase(duprEnv) {
+export function getDuprBase(duprEnv) {
     return duprEnv === 'prod'
         ? 'https://prod.mydupr.com'
         : 'https://uat.mydupr.com';

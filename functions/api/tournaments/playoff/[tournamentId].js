@@ -25,6 +25,20 @@ async function getTournamentMeta(env, tournamentId) {
     ).bind(tournamentId).first();
 }
 
+async function getLatestDuprSubmission(env, tournamentId) {
+    try {
+        return await env.DB.prepare(
+            `SELECT success, created_at
+             FROM dupr_match_submissions
+             WHERE tournament_id = ?
+             ORDER BY id DESC
+             LIMIT 1`
+        ).bind(tournamentId).first();
+    } catch (error) {
+        return null;
+    }
+}
+
 async function listTeams(env, tournamentId) {
     const result = await env.DB.prepare(
         `SELECT t.id AS team_id,
@@ -202,6 +216,7 @@ export async function onRequestGet({ env, params }) {
     }
 
     const tournamentMeta = await getTournamentMeta(env, tournamentId);
+    const duprSubmission = await getLatestDuprSubmission(env, tournamentId);
     const teams = await listTeams(env, tournamentId);
     const scores = await listScores(env, tournamentId);
     const seedOrder = playoffState.seed_order ? JSON.parse(playoffState.seed_order) : [];
@@ -231,6 +246,12 @@ export async function onRequestGet({ env, params }) {
     return jsonResponse({
         status: playoffState.status || 'playoff',
         tournamentStatus: tournamentMeta?.status || 'upcoming',
+        duprSubmission: duprSubmission
+            ? {
+                success: duprSubmission.success === 1,
+                submittedAt: duprSubmission.created_at
+            }
+            : null,
         seedOrder,
         playoffTeams: playoffState.playoff_teams,
         bestOfThree,

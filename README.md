@@ -66,6 +66,9 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
    - Optional: `DUPR_WEBHOOK_URL=https://your-domain.com/api/dupr/webhook`
    - Optional: `DUPR_WEBHOOK_REGISTER_URL=https://uat.mydupr.com/api/v1.0/webhook` (or prod URL)
    - Optional: `DUPR_SUBSCRIBE_PLAYER_URL=<DUPR subscribe-player-rating endpoint URL>`
+   - Optional: `DUPR_MATCH_BATCH_URL=https://uat.mydupr.com/api/match/v1.0/batch` (or prod URL)
+   - Optional: `DUPR_USER_CLUBS_URL=https://uat.mydupr.com/api/user/v1.0/{duprId}/clubs` (or prod URL)
+   - Optional: `DUPR_CLUB_ID=<your_dupr_club_id>`
 
 2. **Run Pages dev server**
    ```bash
@@ -123,6 +126,29 @@ If you want to run the Cloudflare Pages Functions locally (for `/api/auth/*`), a
 - On successful `/api/dupr/link`, the backend attempts a best-effort DUPR player-rating subscription.
 - Subscription status is tracked in `dupr_player_subscriptions`.
 - Set `DUPR_SUBSCRIBE_PLAYER_URL` to your DUPR-provided subscribe endpoint.
+
+### DUPR club membership diagnostics (admin)
+
+`GET /api/dupr/club-membership-check`
+
+- Requires Clerk auth and admin user.
+- Uses partner token and linked user DUPR ID to fetch club memberships from DUPR.
+- Evaluates if current user can submit results for configured `DUPR_CLUB_ID`:
+  - user must be in that club
+  - role must be `DIRECTOR` or `ORGANIZER`
+- Useful for troubleshooting `Submit to DUPR` permissions before submission.
+
+### Submit Tournament Matches to DUPR
+
+`POST /api/tournaments/submit-dupr/:tournamentId`
+
+- Requires Clerk auth and admin user.
+- Tournament must be marked `dupr_required`.
+- Requires `DUPR_CLUB_ID` to be set.
+- Submitting admin must be linked to DUPR and must be `DIRECTOR` or `ORGANIZER` in that club.
+- Round robin + playoff completed matches are submitted in one DUPR batch call.
+- Successful/failed attempts are logged in `dupr_match_submissions`.
+- Duplicate successful submissions are blocked unless `{"force": true}` is sent.
 
 ## Deployment to Cloudflare Pages
 

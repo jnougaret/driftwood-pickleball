@@ -1848,6 +1848,40 @@ async function archiveTournamentResults(tournamentId) {
     }
 }
 
+async function submitTournamentToDupr(tournamentId) {
+    const auth = window.authUtils;
+    const user = auth && auth.getCurrentUser ? auth.getCurrentUser() : null;
+    if (!user) return;
+
+    try {
+        const playoff = await fetchPlayoffState(tournamentId);
+        if (!playoff || !playoff.isComplete) {
+            alert('Enter all required finals scores before submitting to DUPR.');
+            return;
+        }
+
+        const token = await auth.getAuthToken();
+        const response = await fetch(`/api/tournaments/submit-dupr/${tournamentId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const payload = await readJsonSafe(response);
+        if (!response.ok) {
+            alert((payload && payload.error) || 'Unable to submit matches to DUPR.');
+            return;
+        }
+
+        alert(`Submitted ${payload.submitted || 0} matches to DUPR.`);
+        await renderTournamentView(tournamentId, { force: true, preserveScroll: true });
+    } catch (error) {
+        console.error('Submit to DUPR error:', error);
+        alert('Unable to submit matches to DUPR.');
+    }
+}
+
 async function fetchRoundRobin(tournamentId) {
     const response = await fetch(`/api/tournaments/round-robin/${tournamentId}`);
     if (!response.ok) {
@@ -2385,6 +2419,7 @@ async function renderPlayoffView(
 ) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     if (!roundsContainer) return;
+    const duprRequired = await getDuprRequiredSetting(tournamentId);
 
     const seedOrder = playoff.seedOrder || [];
     const scores = playoff.scores || [];
@@ -2586,6 +2621,18 @@ async function renderPlayoffView(
         }
 
         const canArchiveResults = Boolean(playoff && playoff.isComplete);
+        const alreadySubmittedToDupr = Boolean(playoff && playoff.duprSubmission && playoff.duprSubmission.success);
+        const submitToDuprButton = isFinal && isAdmin && duprRequired
+            ? `
+                <button
+                    class="mt-4 w-full border border-sand-600 bg-sand-500 text-ocean-blue px-4 py-2 rounded-lg hover:bg-sand-600 transition font-semibold ${canArchiveResults && !alreadySubmittedToDupr ? '' : 'opacity-60 cursor-not-allowed'}"
+                    onclick="submitTournamentToDupr('${tournamentId}')"
+                    ${canArchiveResults && !alreadySubmittedToDupr ? '' : 'disabled'}
+                >
+                    ${alreadySubmittedToDupr ? 'Submitted to DUPR' : 'Submit to DUPR'}
+                </button>
+            `
+            : '';
         const archiveButton = isFinal && isAdmin
             ? `
                 <button
@@ -2605,6 +2652,7 @@ async function renderPlayoffView(
                 <div class="space-y-3">${matchesHtml || `<div class="text-sm ${theme.emptyClass}">No matches scheduled.</div>`}</div>
                 ${isFinal && bracketSize >= 4 ? `<div class="text-xs uppercase tracking-wide ${theme.mutedClass} mt-4 mb-2">Bronze Match</div>` : ''}
                 ${bronzeHtml}
+                ${submitToDuprButton}
                 ${archiveButton}
             </div>
         `;

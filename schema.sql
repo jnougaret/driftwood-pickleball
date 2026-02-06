@@ -287,3 +287,20 @@ CREATE TABLE dupr_webhook_registrations (
 );
 
 CREATE INDEX idx_dupr_webhook_registrations_created_at ON dupr_webhook_registrations(created_at);
+
+-- DUPR match submission audit trail
+CREATE TABLE dupr_match_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id TEXT NOT NULL,
+  submitted_by TEXT NOT NULL,
+  dupr_env TEXT NOT NULL DEFAULT 'uat',
+  endpoint TEXT NOT NULL,
+  match_count INTEGER NOT NULL DEFAULT 0,
+  status_code INTEGER,
+  success INTEGER NOT NULL DEFAULT 0,
+  response TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_dupr_match_submissions_tournament ON dupr_match_submissions(tournament_id);
+CREATE INDEX idx_dupr_match_submissions_created_at ON dupr_match_submissions(created_at);
