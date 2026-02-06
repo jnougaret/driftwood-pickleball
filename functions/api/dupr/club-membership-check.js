@@ -14,7 +14,12 @@ function readCookie(request, name) {
     for (const part of parts) {
         const [rawKey, ...rawValue] = part.trim().split('=');
         if (rawKey === name) {
-            return decodeURIComponent(rawValue.join('='));
+            const value = rawValue.join('=');
+            try {
+                return decodeURIComponent(value);
+            } catch (error) {
+                return value;
+            }
         }
     }
     return '';
@@ -29,8 +34,7 @@ async function verifyFromHeaderOrSessionCookie(request) {
 
     const headers = new Headers(request.headers);
     headers.set('Authorization', `Bearer ${sessionToken}`);
-    const requestWithAuth = new Request(request, { headers });
-    return await verifyClerkToken(requestWithAuth);
+    return await verifyClerkToken({ headers });
 }
 
 function getClubMembershipUrl(env, duprEnv, duprId) {
@@ -92,73 +96,80 @@ async function fetchClubMembership(env, accessToken, duprEnv, duprId) {
 }
 
 export async function onRequestGet({ request, env }) {
-    const auth = await verifyFromHeaderOrSessionCookie(request);
-    if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
+    try {
+        const auth = await verifyFromHeaderOrSessionCookie(request);
+        if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
 
-    const user = await getUserById(env, auth.userId);
-    if (!user || !user.is_admin) return jsonResponse({ error: 'Forbidden' }, 403);
-    if (!user.dupr_id) {
-        return jsonResponse({ error: 'Current admin does not have a linked DUPR account' }, 400);
-    }
+        const user = await getUserById(env, auth.userId);
+        if (!user || !user.is_admin) return jsonResponse({ error: 'Forbidden' }, 403);
+        if (!user.dupr_id) {
+            return jsonResponse({ error: 'Current admin does not have a linked DUPR account' }, 400);
+        }
 
-    const token = await fetchPartnerAccessToken(env);
-    if (!token.ok) {
+        const token = await fetchPartnerAccessToken(env);
+        if (!token.ok) {
+            return jsonResponse({
+                error: token.error || 'Unable to fetch partner token',
+                details: token.response || null
+            }, 502);
+        }
+
+        const duprEnv = token.environment || getDuprEnv(env);
+        const membershipResult = await fetchClubMembership(env, token.accessToken, duprEnv, user.dupr_id);
+        if (!membershipResult.ok) {
+            return jsonResponse({
+                error: membershipResult.error,
+                endpoint: membershipResult.endpoint,
+                status: membershipResult.status || null,
+                details: membershipResult.response || null
+            }, 502);
+        }
+
+        const configuredClubRaw = String(env.DUPR_CLUB_ID || '').trim();
+        const configuredClubId = configuredClubRaw && Number.isInteger(Number(configuredClubRaw))
+            ? Number(configuredClubRaw)
+            : null;
+
+        const clubs = membershipResult.membership.map(item => ({
+            clubId: Number(item.clubId),
+            clubName: item.clubName || '',
+            role: String(item.role || '').toUpperCase()
+        }));
+
+        const targetClub = configuredClubId !== null
+            ? clubs.find(item => item.clubId === configuredClubId) || null
+            : null;
+
+        const allowedToSubmit = Boolean(
+            targetClub && (targetClub.role === 'DIRECTOR' || targetClub.role === 'ORGANIZER')
+        );
+
         return jsonResponse({
-            error: token.error || 'Unable to fetch partner token',
-            details: token.response || null
-        }, 502);
-    }
-
-    const duprEnv = token.environment || getDuprEnv(env);
-    const membershipResult = await fetchClubMembership(env, token.accessToken, duprEnv, user.dupr_id);
-    if (!membershipResult.ok) {
-        return jsonResponse({
-            error: membershipResult.error,
+            success: true,
+            environment: duprEnv,
             endpoint: membershipResult.endpoint,
-            status: membershipResult.status || null,
-            details: membershipResult.response || null
-        }, 502);
+            user: {
+                id: user.id,
+                email: user.email || '',
+                displayName: user.display_name || '',
+                duprId: user.dupr_id,
+                isAdmin: user.is_admin === 1
+            },
+            clubConfig: {
+                duprClubId: configuredClubId,
+                isConfigured: configuredClubId !== null
+            },
+            evaluation: {
+                inConfiguredClub: Boolean(targetClub),
+                configuredClubRole: targetClub ? targetClub.role : null,
+                allowedToSubmit
+            },
+            memberships: clubs
+        });
+    } catch (error) {
+        return jsonResponse({
+            error: 'Diagnostics endpoint failed unexpectedly',
+            details: String(error && error.message ? error.message : error)
+        }, 500);
     }
-
-    const configuredClubRaw = String(env.DUPR_CLUB_ID || '').trim();
-    const configuredClubId = configuredClubRaw && Number.isInteger(Number(configuredClubRaw))
-        ? Number(configuredClubRaw)
-        : null;
-
-    const clubs = membershipResult.membership.map(item => ({
-        clubId: Number(item.clubId),
-        clubName: item.clubName || '',
-        role: String(item.role || '').toUpperCase()
-    }));
-
-    const targetClub = configuredClubId !== null
-        ? clubs.find(item => item.clubId === configuredClubId) || null
-        : null;
-
-    const allowedToSubmit = Boolean(
-        targetClub && (targetClub.role === 'DIRECTOR' || targetClub.role === 'ORGANIZER')
-    );
-
-    return jsonResponse({
-        success: true,
-        environment: duprEnv,
-        endpoint: membershipResult.endpoint,
-        user: {
-            id: user.id,
-            email: user.email || '',
-            displayName: user.display_name || '',
-            duprId: user.dupr_id,
-            isAdmin: user.is_admin === 1
-        },
-        clubConfig: {
-            duprClubId: configuredClubId,
-            isConfigured: configuredClubId !== null
-        },
-        evaluation: {
-            inConfiguredClub: Boolean(targetClub),
-            configuredClubRole: targetClub ? targetClub.role : null,
-            allowedToSubmit
-        },
-        memberships: clubs
-    });
 }
