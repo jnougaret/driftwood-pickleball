@@ -31,16 +31,30 @@ function normalizeTokenResponse(payload) {
     if (!payload || typeof payload !== 'object') {
         return { accessToken: null, expiresIn: null };
     }
+    const result = payload.result && typeof payload.result === 'object' ? payload.result : null;
     const accessToken = payload.accessToken
         || payload.access_token
         || payload.token
+        || result?.accessToken
+        || result?.access_token
+        || result?.token
         || payload.jwt
         || null;
     const expiresInRaw = payload.expiresIn
         || payload.expires_in
         || payload.expires
+        || result?.expiresIn
+        || result?.expires_in
+        || result?.expires
         || null;
-    const expiresIn = Number.isFinite(Number(expiresInRaw)) ? Number(expiresInRaw) : 3600;
+    let expiresIn = Number.isFinite(Number(expiresInRaw)) ? Number(expiresInRaw) : null;
+    if (!expiresIn && result?.expiry) {
+        const expiryMs = Date.parse(result.expiry);
+        if (Number.isFinite(expiryMs)) {
+            expiresIn = Math.max(0, Math.floor((expiryMs - Date.now()) / 1000));
+        }
+    }
+    if (!expiresIn) expiresIn = 3600;
     return { accessToken, expiresIn };
 }
 
