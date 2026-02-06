@@ -158,10 +158,27 @@ function renderResults() {
     
     container.innerHTML = ''; // Clear existing content
     
-    const tournaments = getResultsTournaments();
+    const tournaments = [...getResultsTournaments()].sort((a, b) => {
+        const timeA = Date.parse(`${a.startDate || ''}T00:00:00Z`);
+        const timeB = Date.parse(`${b.startDate || ''}T00:00:00Z`);
+        const hasA = Number.isFinite(timeA);
+        const hasB = Number.isFinite(timeB);
+
+        // Newest dated results first (left-most card).
+        if (hasA && hasB && timeA !== timeB) return timeB - timeA;
+        if (hasA && !hasB) return -1;
+        if (!hasA && hasB) return 1;
+
+        // Stable fallback when dates are unavailable or identical.
+        const orderA = Number.isFinite(Number(a.displayOrder)) ? Number(a.displayOrder) : Number.MAX_SAFE_INTEGER;
+        const orderB = Number.isFinite(Number(b.displayOrder)) ? Number(b.displayOrder) : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.id || '').localeCompare(String(b.id || ''));
+    });
     cleanupResultsViewStateStorage(tournaments);
     if (!tournaments.length) {
         container.innerHTML = '<p class="text-sm text-gray-500">No completed results yet.</p>';
+        requestAnimationFrame(updateResultsCarouselArrows);
         return;
     }
 
@@ -169,7 +186,41 @@ function renderResults() {
         const card = createTournamentCard(tournament, 'results');
         container.appendChild(card);
     });
+    requestAnimationFrame(updateResultsCarouselArrows);
 }
+
+function scrollResultsCarousel(direction) {
+    const container = document.getElementById('results-container');
+    if (!container) return;
+    const delta = Math.max(container.clientWidth * 0.82, 280);
+    const left = direction === 'left' ? -delta : delta;
+    container.scrollBy({ left, behavior: 'smooth' });
+}
+
+function updateResultsCarouselArrows() {
+    const container = document.getElementById('results-container');
+    const leftButton = document.getElementById('results-scroll-left');
+    const rightButton = document.getElementById('results-scroll-right');
+    if (!container || !leftButton || !rightButton) return;
+
+    const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    const current = container.scrollLeft;
+    const edgeTolerance = 2;
+
+    leftButton.disabled = current <= edgeTolerance;
+    rightButton.disabled = current >= (maxLeft - edgeTolerance);
+}
+
+function ensureResultsCarouselBindings() {
+    const container = document.getElementById('results-container');
+    if (!container || container.dataset.arrowBindings === 'true') return;
+
+    container.dataset.arrowBindings = 'true';
+    container.addEventListener('scroll', updateResultsCarouselArrows, { passive: true });
+    window.addEventListener('resize', updateResultsCarouselArrows);
+}
+
+window.scrollResultsCarousel = scrollResultsCarousel;
 
 // ========================================
 // CREATE TOURNAMENT CARD
@@ -3610,6 +3661,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     renderUpcomingTournaments();
     renderResults();
+    ensureResultsCarouselBindings();
+    requestAnimationFrame(updateResultsCarouselArrows);
     refreshAdminDetailEditors();
     checkTournamentStatus();
     const openRegistrationId = getOpenRegistration();

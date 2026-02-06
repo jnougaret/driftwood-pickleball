@@ -272,8 +272,86 @@
             }
         }
 
+        #results-carousel {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .results-arrow {
+            flex: 0 0 auto;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 9999px;
+            border: 1px solid #c5b086;
+            background: var(--sand-50);
+            color: #1a3a52;
+            font-size: 1.5rem;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .results-arrow:hover {
+            background: var(--sand-100);
+        }
+
+        .results-arrow:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+            background: var(--sand-50);
+        }
+
         #results-container {
             align-items: flex-start !important;
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: flex-start !important;
+            overflow-x: auto;
+            gap: 1.25rem;
+            padding-bottom: 0.5rem;
+            scroll-snap-type: x proximity;
+            scrollbar-width: auto;
+            scrollbar-color: #1a3a52 #d1d5db;
+            max-width: 100%;
+        }
+
+        #results-container .tournament-card {
+            flex: 0 0 min(90vw, 350px);
+            width: min(90vw, 350px);
+            scroll-snap-align: start;
+        }
+
+        #results-container::-webkit-scrollbar {
+            height: 10px;
+        }
+
+        #results-container::-webkit-scrollbar-track {
+            background: #d1d5db;
+            border-radius: 999px;
+        }
+
+        #results-container::-webkit-scrollbar-thumb {
+            background: #1a3a52;
+            border-radius: 999px;
+            border: 2px solid #d1d5db;
+        }
+
+        @media (max-width: 767px) {
+            .results-arrow {
+                width: 2.1rem;
+                height: 2.1rem;
+                font-size: 1.25rem;
+            }
+
+            #results-carousel {
+                gap: 0.5rem;
+            }
         }
 
         .score-input {
@@ -406,8 +484,28 @@
     <section id="results" class="py-16 bg-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-4xl font-bold text-center text-ocean-blue mb-12">Results</h2>
-            <div id="results-container" class="flex flex-wrap justify-center gap-8 max-w-5xl mx-auto">
-                <!-- Results auto-generated from API -->
+            <div id="results-carousel">
+                <button
+                    type="button"
+                    id="results-scroll-left"
+                    class="results-arrow"
+                    aria-label="Scroll results left"
+                    onclick="scrollResultsCarousel('left')"
+                >
+                    &#8249;
+                </button>
+                <div id="results-container">
+                    <!-- Results auto-generated from API -->
+                </div>
+                <button
+                    type="button"
+                    id="results-scroll-right"
+                    class="results-arrow"
+                    aria-label="Scroll results right"
+                    onclick="scrollResultsCarousel('right')"
+                >
+                    &#8250;
+                </button>
             </div>
         </div>
     </section>
