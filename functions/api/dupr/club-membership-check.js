@@ -153,7 +153,7 @@ export async function onRequestGet({ request, env }) {
                 success: tokenFetch.ok === true,
                 stage: 'token-fetch',
                 tokenResult: tokenFetch
-            }, tokenFetch.ok ? 200 : 502);
+            }, 200);
         }
 
         const token = await fetchPartnerAccessToken(env);
