@@ -45,6 +45,12 @@ function getClubMembershipUrl(env, duprEnv, duprId) {
     return `${getDuprBase(duprEnv)}/api/user/v1.0/${encodeURIComponent(String(duprId))}/clubs`;
 }
 
+function getTokenUrlForDebug(env, duprEnv) {
+    const explicit = (env.DUPR_TOKEN_URL || '').trim();
+    if (explicit) return explicit;
+    return `${getDuprBase(duprEnv)}/api/auth/v1.0/token`;
+}
+
 async function getUserById(env, userId) {
     return await env.DB.prepare(
         'SELECT id, email, display_name, is_admin, dupr_id FROM users WHERE id = ?'
@@ -136,12 +142,33 @@ export async function onRequestGet({ request, env }) {
                 details: token.response || null
             }, 502);
         }
-        if (debug === 'token') {
+        if (debug === 'token' || debug === 'token-config') {
+            const duprEnv = getDuprEnv(env);
             return jsonResponse({
                 success: true,
-                stage: 'token',
-                environment: token.environment || getDuprEnv(env)
+                stage: 'token-config',
+                environment: duprEnv,
+                tokenUrl: getTokenUrlForDebug(env, duprEnv),
+                hasClientKey: Boolean((env.DUPR_CLIENT_KEY || '').trim()),
+                hasClientSecret: Boolean((env.DUPR_CLIENT_SECRET || '').trim())
             });
+        }
+
+        if (debug === 'token-fetch') {
+            const token = await fetchPartnerAccessToken(env);
+            return jsonResponse({
+                success: token.ok === true,
+                stage: 'token-fetch',
+                tokenResult: token
+            }, token.ok ? 200 : 502);
+        }
+
+        const token = await fetchPartnerAccessToken(env);
+        if (!token.ok) {
+            return jsonResponse({
+                error: token.error || 'Unable to fetch partner token',
+                details: token.response || token.details || null
+            }, 502);
         }
 
         const duprEnv = token.environment || getDuprEnv(env);

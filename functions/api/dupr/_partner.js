@@ -71,56 +71,68 @@ function encodeBasicAuth(clientKey, clientSecret) {
 }
 
 export async function fetchPartnerAccessToken(env) {
-    const clientKey = (env.DUPR_CLIENT_KEY || '').trim();
-    const clientSecret = (env.DUPR_CLIENT_SECRET || '').trim();
-    if (!clientKey || !clientSecret) {
-        return { ok: false, error: 'DUPR client key/secret not configured' };
-    }
-
-    const duprEnv = getDuprEnv(env);
-    const tokenUrl = getTokenUrl(env, duprEnv);
-    const encoded = encodeBasicAuth(clientKey, clientSecret);
-    if (!encoded) {
-        return { ok: false, error: 'Failed to encode DUPR credentials' };
-    }
-
-    let response;
     try {
-        response = await fetch(tokenUrl, {
-            method: 'POST',
-            headers: {
-                'x-authorization': encoded
-            }
-        });
+        const clientKey = (env.DUPR_CLIENT_KEY || '').trim();
+        const clientSecret = (env.DUPR_CLIENT_SECRET || '').trim();
+        if (!clientKey || !clientSecret) {
+            return { ok: false, error: 'DUPR client key/secret not configured' };
+        }
+
+        const duprEnv = getDuprEnv(env);
+        const tokenUrl = getTokenUrl(env, duprEnv);
+        const encoded = encodeBasicAuth(clientKey, clientSecret);
+        if (!encoded) {
+            return { ok: false, error: 'Failed to encode DUPR credentials' };
+        }
+
+        let response;
+        try {
+            response = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'x-authorization': encoded
+                }
+            });
+        } catch (error) {
+            return {
+                ok: false,
+                error: 'Unable to reach DUPR token endpoint',
+                details: String(error && error.message ? error.message : error)
+            };
+        }
+
+        const parsed = await parseResponse(response);
+        if (!response.ok) {
+            return {
+                ok: false,
+                error: 'DUPR token request failed',
+                status: response.status,
+                response: parsed.json || parsed.rawText
+            };
+        }
+
+        const normalized = normalizeTokenResponse(parsed.json);
+        if (!normalized.accessToken) {
+            return {
+                ok: false,
+                error: 'DUPR token response missing access token',
+                response: parsed.json || parsed.rawText
+            };
+        }
+
+        return {
+            ok: true,
+            environment: duprEnv,
+            accessToken: normalized.accessToken,
+            expiresIn: normalized.expiresIn
+        };
     } catch (error) {
-        return { ok: false, error: 'Unable to reach DUPR token endpoint' };
-    }
-
-    const parsed = await parseResponse(response);
-    if (!response.ok) {
         return {
             ok: false,
-            error: 'DUPR token request failed',
-            status: response.status,
-            response: parsed.json || parsed.rawText
+            error: 'Unexpected DUPR token flow error',
+            details: String(error && error.message ? error.message : error)
         };
     }
-
-    const normalized = normalizeTokenResponse(parsed.json);
-    if (!normalized.accessToken) {
-        return {
-            ok: false,
-            error: 'DUPR token response missing access token',
-            response: parsed.json || parsed.rawText
-        };
-    }
-
-    return {
-        ok: true,
-        environment: duprEnv,
-        accessToken: normalized.accessToken,
-        expiresIn: normalized.expiresIn
-    };
 }
 
 export async function registerWebhook(env, webhookUrl, topics) {
