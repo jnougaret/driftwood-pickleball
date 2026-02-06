@@ -1710,6 +1710,7 @@ async function renderTournamentView(tournamentId, options = {}) {
     const allowNonTournament = options.allowNonTournament === true;
     const forceSection = options.forceSection === 'playoff' ? 'playoff' : (options.forceSection === 'roundRobin' ? 'roundRobin' : null);
     const readOnly = options.readOnly === true;
+    const scoreEditMode = options.scoreEditMode || 'default';
     if (!options.force) {
         const activeEl = document.activeElement;
         if (activeEl && activeEl.id && activeEl.id.startsWith(`${tournamentId}-`)) {
@@ -1749,6 +1750,7 @@ async function renderTournamentView(tournamentId, options = {}) {
         const hasAdminTournamentAction = Boolean(
             document.getElementById(`${tournamentId}-tournament-actions`)?.querySelector('button')
         );
+        const isMasterAdmin = Boolean(window.authProfile && window.authProfile.isMasterAdmin);
         const isAdmin = readOnly
             ? false
             : Boolean((window.authProfile && window.authProfile.isAdmin) || hasAdminTournamentAction);
@@ -1760,7 +1762,17 @@ async function renderTournamentView(tournamentId, options = {}) {
             const resetScroll = Number.isInteger(options.scrollToRound) && options.scrollToRound === 0;
             const preserveScroll = options.preserveScroll === true && !resetScroll;
             const currentScrollLeft = preserveScroll ? roundsContainer.scrollLeft : null;
-            renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll, currentScrollLeft);
+            renderPlayoffView(
+                tournamentId,
+                playoff,
+                teamPlayers,
+                currentUserId,
+                isAdmin,
+                resetScroll,
+                currentScrollLeft,
+                scoreEditMode,
+                isMasterAdmin
+            );
             return;
         }
         if (forceSection === 'playoff') {
@@ -1946,7 +1958,15 @@ async function renderTournamentView(tournamentId, options = {}) {
             const cards = roundMatches.map(match => {
                 const team1Players = teamPlayers.get(match.team1_id) || [];
                 const team2Players = teamPlayers.get(match.team2_id) || [];
-                const canEdit = isAdmin || (currentUserId && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+                const isParticipant = Boolean(currentUserId && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+                let canEdit = false;
+                if (scoreEditMode === 'master_only') {
+                    canEdit = isMasterAdmin;
+                } else if (scoreEditMode === 'none') {
+                    canEdit = false;
+                } else {
+                    canEdit = isAdmin || isParticipant;
+                }
                 return `
                     <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                         <div class="flex items-center justify-between gap-3 text-gray-600">
@@ -2191,7 +2211,17 @@ function playoffRoundLabel(bracketSize, roundNumber) {
     return `Round ${roundNumber}`;
 }
 
-async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUserId, isAdmin, resetScroll = false, preserveScrollLeft = null) {
+async function renderPlayoffView(
+    tournamentId,
+    playoff,
+    teamPlayers,
+    currentUserId,
+    isAdmin,
+    resetScroll = false,
+    preserveScrollLeft = null,
+    scoreEditMode = 'default',
+    isMasterAdmin = false
+) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     if (!roundsContainer) return;
 
@@ -2220,7 +2250,15 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const team2Name = teamsMap.get(match.team2Id) || (match.team2Id ? 'Team' : 'TBD');
             const team1Players = teamPlayers.get(match.team1Id) || [];
             const team2Players = teamPlayers.get(match.team2Id) || [];
-            const canEdit = isAdmin || (currentUserId && match.team1Id && match.team2Id && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+            const isParticipant = Boolean(currentUserId && match.team1Id && match.team2Id && (team1Players.includes(currentUserId) || team2Players.includes(currentUserId)));
+            let canEdit = false;
+            if (scoreEditMode === 'master_only') {
+                canEdit = isMasterAdmin;
+            } else if (scoreEditMode === 'none') {
+                canEdit = false;
+            } else {
+                canEdit = isAdmin || isParticipant;
+            }
             const score = match.score || {};
             const matchVersion = Number.isInteger(score.version) ? score.version : 0;
             const team1Score1 = score.game1_score1;
@@ -2331,7 +2369,15 @@ async function renderPlayoffView(tournamentId, playoff, teamPlayers, currentUser
             const bronzeTeam1Players = teamPlayers.get(bronzeTeam1) || [];
             const bronzeTeam2Players = teamPlayers.get(bronzeTeam2) || [];
             const bronzeVersion = bronzeScore && Number.isInteger(bronzeScore.version) ? bronzeScore.version : 0;
-            const bronzeCanEdit = isAdmin || (currentUserId && bronzeTeam1 && bronzeTeam2 && (bronzeTeam1Players.includes(currentUserId) || bronzeTeam2Players.includes(currentUserId)));
+            const bronzeParticipant = Boolean(currentUserId && bronzeTeam1 && bronzeTeam2 && (bronzeTeam1Players.includes(currentUserId) || bronzeTeam2Players.includes(currentUserId)));
+            let bronzeCanEdit = false;
+            if (scoreEditMode === 'master_only') {
+                bronzeCanEdit = isMasterAdmin;
+            } else if (scoreEditMode === 'none') {
+                bronzeCanEdit = false;
+            } else {
+                bronzeCanEdit = isAdmin || bronzeParticipant;
+            }
             const bronzeInputs = (teamSlot, values) => `
                 <div class="flex items-center gap-2">
                     ${scoreInputHtmlPlayoff(tournamentId, roundNumber, 2, teamSlot, 1, values[0], bronzeCanEdit, bronzeVersion)}
@@ -3121,6 +3167,7 @@ async function showFullResults(tournamentId, section = 'roundRobin') {
         force: true,
         allowNonTournament: true,
         readOnly: true,
+        scoreEditMode: 'master_only',
         forceSection: mode,
         scrollToRound: 0
     });
