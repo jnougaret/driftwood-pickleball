@@ -8,6 +8,31 @@ function jsonResponse(body, status = 200) {
     });
 }
 
+function readCookie(request, name) {
+    const cookieHeader = request.headers.get('Cookie') || '';
+    const parts = cookieHeader.split(';');
+    for (const part of parts) {
+        const [rawKey, ...rawValue] = part.trim().split('=');
+        if (rawKey === name) {
+            return decodeURIComponent(rawValue.join('='));
+        }
+    }
+    return '';
+}
+
+async function verifyFromHeaderOrSessionCookie(request) {
+    let auth = await verifyClerkToken(request);
+    if (!auth.error) return auth;
+
+    const sessionToken = readCookie(request, '__session');
+    if (!sessionToken) return auth;
+
+    const headers = new Headers(request.headers);
+    headers.set('Authorization', `Bearer ${sessionToken}`);
+    const requestWithAuth = new Request(request, { headers });
+    return await verifyClerkToken(requestWithAuth);
+}
+
 function getClubMembershipUrl(env, duprEnv, duprId) {
     const explicit = (env.DUPR_USER_CLUBS_URL || '').trim();
     if (explicit) {
@@ -67,7 +92,7 @@ async function fetchClubMembership(env, accessToken, duprEnv, duprId) {
 }
 
 export async function onRequestGet({ request, env }) {
-    const auth = await verifyClerkToken(request);
+    const auth = await verifyFromHeaderOrSessionCookie(request);
     if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
 
     const user = await getUserById(env, auth.userId);
