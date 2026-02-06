@@ -212,9 +212,13 @@ function updateResultsCarouselArrows() {
     const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
     const current = container.scrollLeft;
     const edgeTolerance = 2;
+    const hasOverflow = maxLeft > edgeTolerance;
 
     const disableLeft = current <= edgeTolerance;
     const disableRight = current >= (maxLeft - edgeTolerance);
+
+    // Center cards when all results fit in the viewport (e.g. 1-2 cards on desktop).
+    container.classList.toggle('results-centered', !hasOverflow);
 
     leftButtons.forEach(button => {
         button.disabled = disableLeft;
