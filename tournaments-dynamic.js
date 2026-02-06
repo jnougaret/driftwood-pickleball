@@ -199,16 +199,29 @@ function scrollResultsCarousel(direction) {
 
 function updateResultsCarouselArrows() {
     const container = document.getElementById('results-container');
-    const leftButton = document.getElementById('results-scroll-left');
-    const rightButton = document.getElementById('results-scroll-right');
-    if (!container || !leftButton || !rightButton) return;
+    const leftButtons = [
+        document.getElementById('results-scroll-left'),
+        document.getElementById('results-scroll-left-mobile')
+    ].filter(Boolean);
+    const rightButtons = [
+        document.getElementById('results-scroll-right'),
+        document.getElementById('results-scroll-right-mobile')
+    ].filter(Boolean);
+    if (!container || leftButtons.length === 0 || rightButtons.length === 0) return;
 
     const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
     const current = container.scrollLeft;
     const edgeTolerance = 2;
 
-    leftButton.disabled = current <= edgeTolerance;
-    rightButton.disabled = current >= (maxLeft - edgeTolerance);
+    const disableLeft = current <= edgeTolerance;
+    const disableRight = current >= (maxLeft - edgeTolerance);
+
+    leftButtons.forEach(button => {
+        button.disabled = disableLeft;
+    });
+    rightButtons.forEach(button => {
+        button.disabled = disableRight;
+    });
 }
 
 function ensureResultsCarouselBindings() {

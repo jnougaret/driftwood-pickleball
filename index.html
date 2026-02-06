@@ -278,6 +278,11 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            position: relative;
+        }
+
+        #results-arrows-mobile {
+            display: none;
         }
 
         .results-arrow {
@@ -343,14 +348,36 @@
         }
 
         @media (max-width: 767px) {
-            .results-arrow {
-                width: 2.1rem;
-                height: 2.1rem;
-                font-size: 1.25rem;
+            #results-carousel {
+                display: block;
+                gap: 0;
             }
 
-            #results-carousel {
-                gap: 0.5rem;
+            #results-container {
+                gap: 0.75rem;
+            }
+
+            #results-container .tournament-card {
+                flex: 0 0 100%;
+                width: 100%;
+            }
+
+            #results-carousel > .results-arrow {
+                display: none;
+            }
+
+            #results-arrows-mobile {
+                margin-top: 0.6rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.6rem;
+            }
+
+            #results-arrows-mobile .results-arrow {
+                width: 2.25rem;
+                height: 2.25rem;
+                font-size: 1.25rem;
             }
         }
 
@@ -506,6 +533,26 @@
                 >
                     &#8250;
                 </button>
+                <div id="results-arrows-mobile">
+                    <button
+                        type="button"
+                        id="results-scroll-left-mobile"
+                        class="results-arrow"
+                        aria-label="Scroll results left"
+                        onclick="scrollResultsCarousel('left')"
+                    >
+                        &#8249;
+                    </button>
+                    <button
+                        type="button"
+                        id="results-scroll-right-mobile"
+                        class="results-arrow"
+                        aria-label="Scroll results right"
+                        onclick="scrollResultsCarousel('right')"
+                    >
+                        &#8250;
+                    </button>
+                </div>
             </div>
         </div>
     </section>
