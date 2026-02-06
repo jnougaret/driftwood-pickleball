@@ -213,12 +213,15 @@ function updateResultsCarouselArrows() {
     const current = container.scrollLeft;
     const edgeTolerance = 2;
     const hasOverflow = maxLeft > edgeTolerance;
+    const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+    const cardCount = container.querySelectorAll('.tournament-card').length;
+    const shouldCenter = isDesktop && cardCount > 0 && cardCount <= 2;
 
     const disableLeft = current <= edgeTolerance;
     const disableRight = current >= (maxLeft - edgeTolerance);
 
-    // Center cards when all results fit in the viewport (e.g. 1-2 cards on desktop).
-    container.classList.toggle('results-centered', !hasOverflow);
+    // Prefer predictable desktop centering for small result sets.
+    container.classList.toggle('results-centered', shouldCenter || (!hasOverflow && isDesktop));
 
     leftButtons.forEach(button => {
         button.disabled = disableLeft;
