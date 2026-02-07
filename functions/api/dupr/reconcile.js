@@ -63,7 +63,7 @@ async function getPendingCount(env) {
          FROM dupr_submitted_matches
          WHERE deleted_at IS NULL
            AND status = 'submitted'
-           AND (verification_status IS NULL OR verification_status != 'verified')`
+           AND (verification_status IS NULL OR TRIM(verification_status) = '')`
     ).first();
     return Number(row?.count || 0);
 }
@@ -84,7 +84,7 @@ async function getNextPendingMatch(env, requestedMatchId = null) {
          FROM dupr_submitted_matches
          WHERE deleted_at IS NULL
            AND status = 'submitted'
-           AND (verification_status IS NULL OR verification_status != 'verified')
+           AND (verification_status IS NULL OR TRIM(verification_status) = '')
          ORDER BY created_at DESC, id DESC
          LIMIT 1`
     ).first();
