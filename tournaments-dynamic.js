@@ -11,12 +11,15 @@ let tournamentStore = {
 let duprMatchHistoryState = {
     matches: [],
     eligiblePlayers: [],
+    webhookEvents: [],
+    webhookFilter: 'all',
     createOpen: false,
     editId: null,
     pageSize: 10,
     pageStart: 0,
     canWrite: false,
-    permissionsLoaded: false
+    permissionsLoaded: false,
+    webhookLoaded: false
 };
 
 const LEGACY_RESULTS_DATA = {
@@ -3815,6 +3818,26 @@ function clearDuprReconcileStatus() {
     box.innerHTML = '';
 }
 
+function setDuprWebhookStatus(message, tone = 'neutral') {
+    const box = document.getElementById('dupr-webhook-status');
+    if (!box) return;
+    const toneClass = tone === 'error'
+        ? 'border-red-200 bg-red-50 text-red-700'
+        : (tone === 'success'
+            ? 'border-green-200 bg-green-50 text-green-700'
+            : 'border-gray-200 bg-white text-gray-700');
+    box.className = `mb-3 border rounded-lg p-3 text-sm ${toneClass}`;
+    box.textContent = String(message || '');
+    box.classList.remove('hidden');
+}
+
+function clearDuprWebhookStatus() {
+    const box = document.getElementById('dupr-webhook-status');
+    if (!box) return;
+    box.classList.add('hidden');
+    box.textContent = '';
+}
+
 async function refreshDuprMatchHistoryPermissions() {
     duprMatchHistoryState.canWrite = false;
     duprMatchHistoryState.permissionsLoaded = false;
@@ -3973,6 +3996,117 @@ async function runDuprReconcile() {
             : 'Unable to reconcile DUPR history.';
         setDuprReconcileStatus(msg, 'error');
     }
+}
+
+async function loadDuprWebhookEvents() {
+    if (!canManageDuprMatches()) return;
+    try {
+        const payload = await duprHistoryRequest('GET', '/api/dupr/webhook-events');
+        duprMatchHistoryState.webhookEvents = Array.isArray(payload?.events) ? payload.events : [];
+        duprMatchHistoryState.webhookLoaded = true;
+        clearDuprWebhookStatus();
+        renderDuprWebhookPanel();
+    } catch (error) {
+        duprMatchHistoryState.webhookLoaded = false;
+        setDuprWebhookStatus(error.message || 'Unable to load webhook events.', 'error');
+    }
+}
+
+async function replayDuprWebhookEvents() {
+    if (!canManageDuprMatches()) return;
+    try {
+        setDuprWebhookStatus('Replaying unprocessed webhook events...', 'neutral');
+        const payload = await duprHistoryRequest('POST', '/api/dupr/webhook-replay', {});
+        const scanned = Number(payload?.scannedEvents || 0);
+        const processed = Number(payload?.markedProcessed || 0);
+        const updatedUsers = Number(payload?.updatedUsers || 0);
+        setDuprWebhookStatus(
+            `Replay complete. Scanned ${scanned}, marked processed ${processed}, updated users ${updatedUsers}.`,
+            'success'
+        );
+        await loadDuprWebhookEvents();
+    } catch (error) {
+        setDuprWebhookStatus(error.message || 'Unable to replay webhook events.', 'error');
+    }
+}
+
+function renderDuprWebhookPanel() {
+    const panel = document.getElementById('dupr-webhook-panel');
+    const list = document.getElementById('dupr-webhook-list');
+    const refreshButton = document.getElementById('dupr-webhook-refresh-button');
+    const replayButton = document.getElementById('dupr-webhook-replay-button');
+    const filterSelect = document.getElementById('dupr-webhook-filter');
+    if (!panel || !list) return;
+
+    if (!canManageDuprMatches()) {
+        panel.classList.add('hidden');
+        return;
+    }
+
+    panel.classList.remove('hidden');
+
+    if (refreshButton && refreshButton.dataset.bound !== 'true') {
+        refreshButton.dataset.bound = 'true';
+        refreshButton.addEventListener('click', loadDuprWebhookEvents);
+    }
+    if (replayButton && replayButton.dataset.bound !== 'true') {
+        replayButton.dataset.bound = 'true';
+        replayButton.addEventListener('click', replayDuprWebhookEvents);
+    }
+    if (filterSelect && filterSelect.dataset.bound !== 'true') {
+        filterSelect.dataset.bound = 'true';
+        filterSelect.value = duprMatchHistoryState.webhookFilter || 'all';
+        filterSelect.addEventListener('change', (event) => {
+            duprMatchHistoryState.webhookFilter = String(event.target.value || 'all');
+            renderDuprWebhookPanel();
+        });
+    }
+    if (filterSelect && filterSelect.value !== duprMatchHistoryState.webhookFilter) {
+        filterSelect.value = duprMatchHistoryState.webhookFilter;
+    }
+
+    if (!duprMatchHistoryState.webhookLoaded) {
+        list.innerHTML = '<p class="text-sm text-gray-600">Loading webhook events...</p>';
+        return;
+    }
+
+    if (!duprMatchHistoryState.webhookEvents.length) {
+        list.innerHTML = '<p class="text-sm text-gray-600">No webhook events found.</p>';
+        return;
+    }
+
+    const filtered = duprMatchHistoryState.webhookEvents.filter(item => {
+        if (duprMatchHistoryState.webhookFilter === 'pending') return !item.processed;
+        if (duprMatchHistoryState.webhookFilter === 'processed') return Boolean(item.processed);
+        return true;
+    });
+
+    if (!filtered.length) {
+        list.innerHTML = '<p class="text-sm text-gray-600">No events match this filter.</p>';
+        return;
+    }
+
+    const rows = filtered.slice(0, 25).map(item => {
+        const processedClass = item.processed ? 'text-green-700' : 'text-amber-700';
+        const processedLabel = item.processed ? 'processed' : 'pending';
+        const createdAt = item.createdAt
+            ? new Date(item.createdAt).toLocaleString('en-US')
+            : 'Unknown time';
+        const summary = item.summary || {};
+        const duprId = summary.duprId ? ` · DUPR ${summary.duprId}` : '';
+        return `
+            <div class="border border-gray-200 rounded bg-white px-3 py-2 text-sm">
+                <div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                    <span class="font-semibold text-ocean-blue whitespace-nowrap">#${item.id}</span>
+                    <span class="text-gray-700 uppercase">${item.event || item.topic || 'UNKNOWN'}</span>
+                    <span class="${processedClass} uppercase font-semibold text-xs">${processedLabel}</span>
+                    <span class="text-gray-600">${createdAt}${duprId}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    list.innerHTML = rows;
 }
 
 function buildCreatePlayerOptions() {
@@ -4151,6 +4285,8 @@ function renderDuprMatchHistory() {
 
     if (!canManageDuprMatches()) {
         section.classList.add('hidden');
+        const panel = document.getElementById('dupr-webhook-panel');
+        if (panel) panel.classList.add('hidden');
         return;
     }
 
@@ -4179,6 +4315,7 @@ function renderDuprMatchHistory() {
 
     if (!duprMatchHistoryState.matches.length) {
         list.innerHTML = '<p class="text-sm text-gray-600">No submitted matches yet.</p>';
+        renderDuprWebhookPanel();
         return;
     }
     const pageSize = duprMatchHistoryState.pageSize || 10;
@@ -4272,6 +4409,7 @@ function renderDuprMatchHistory() {
     `;
 
     list.innerHTML = rowsHtml + pagerHtml;
+    renderDuprWebhookPanel();
 }
 
 async function loadDuprMatchHistory() {
@@ -4290,12 +4428,14 @@ async function loadDuprMatchHistory() {
         const maxStart = Math.max(0, duprMatchHistoryState.matches.length - (duprMatchHistoryState.pageSize || 10));
         duprMatchHistoryState.pageStart = Math.min(Math.max(duprMatchHistoryState.pageStart || 0, 0), maxStart);
         renderDuprMatchHistory();
+        await loadDuprWebhookEvents();
     } catch (error) {
         section.classList.remove('hidden');
         const list = document.getElementById('dupr-match-history-list');
         if (list) {
             list.innerHTML = `<p class="text-sm text-red-600">${error.message || 'Unable to load DUPR history.'}</p>`;
         }
+        setDuprWebhookStatus(error.message || 'Unable to load webhook events.', 'error');
     }
 }
 
