@@ -3991,10 +3991,6 @@ async function saveEditDuprMatch(matchId) {
     try {
         const id = Number(matchId);
         const payload = {
-            eventName: (document.getElementById(`dupr-edit-event-${id}`)?.value || '').trim(),
-            matchDate: (document.getElementById(`dupr-edit-date-${id}`)?.value || '').trim(),
-            bracketName: (document.getElementById(`dupr-edit-bracket-${id}`)?.value || '').trim(),
-            location: (document.getElementById(`dupr-edit-location-${id}`)?.value || '').trim(),
             games: buildGamesFromForm(`dupr-edit-${id}`)
         };
         await duprHistoryRequest('PATCH', `/api/dupr/submitted-matches/${id}`, payload);
@@ -4079,12 +4075,6 @@ function renderDuprMatchHistory() {
 
         return `
             <div class="border border-ocean-blue rounded-lg bg-white p-3 space-y-2">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <input id="dupr-edit-event-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.eventName || '').replace(/"/g, '&quot;')}" />
-                    <input id="dupr-edit-date-${match.id}" type="date" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${match.matchDate || ''}" />
-                    <input id="dupr-edit-bracket-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.bracketName || '').replace(/"/g, '&quot;')}" />
-                    <input id="dupr-edit-location-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.location || '').replace(/"/g, '&quot;')}" />
-                </div>
                 <div class="grid grid-cols-6 gap-2 items-center">
                     <span class="text-xs text-gray-600">G1</span>
                     <input id="dupr-edit-${match.id}-g1a" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamA.game1) ? match.teamA.game1 : ''}" />
@@ -4114,8 +4104,10 @@ function renderDuprMatchHistory() {
                 onclick="previousDuprHistoryPage()"
                 class="px-3 py-2 rounded-lg border border-gray-300 text-ocean-blue ${disablePrevious ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'}"
                 ${disablePrevious ? 'disabled' : ''}
+                aria-label="Previous 10 matches"
+                title="Previous 10 matches"
             >
-                Up 10
+                &#8593;
             </button>
             <span class="text-xs text-gray-600">${rangeLabel}</span>
             <button
@@ -4123,8 +4115,10 @@ function renderDuprMatchHistory() {
                 onclick="nextDuprHistoryPage()"
                 class="px-3 py-2 rounded-lg border border-gray-300 text-ocean-blue ${disableNext ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'}"
                 ${disableNext ? 'disabled' : ''}
+                aria-label="Next 10 matches"
+                title="Next 10 matches"
             >
-                Down 10
+                &#8595;
             </button>
         </div>
     `;
