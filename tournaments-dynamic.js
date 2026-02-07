@@ -4033,8 +4033,8 @@ function renderDuprMatchHistory() {
             ? 'text-red-600'
             : (match.status === 'updated' ? 'text-ocean-teal' : 'text-ocean-blue');
         const score = matchScoreSummary(match);
-        const canEdit = match.status !== 'deleted' && Number.isInteger(match.duprMatchId);
-        const canDelete = match.status !== 'deleted' && Boolean(match.duprMatchCode);
+        const canEdit = match.status !== 'deleted';
+        const canDelete = match.status !== 'deleted';
 
         if (!isEditing) {
             return `
