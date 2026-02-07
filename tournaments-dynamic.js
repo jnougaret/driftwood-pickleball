@@ -4037,7 +4037,7 @@ function renderDuprMatchHistory() {
 
         if (!isEditing) {
             return `
-                <div class="border border-gray-200 rounded-lg bg-gray-50 p-3">
+                <div class="border border-gray-200 rounded-lg bg-white p-3">
                     <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 text-sm">
                         <span class="font-semibold text-ocean-blue whitespace-nowrap">${normalizeDateLabel(match.matchDate)}</span>
                         <span class="font-semibold">${match.eventName}</span>
