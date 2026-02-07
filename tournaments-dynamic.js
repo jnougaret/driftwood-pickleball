@@ -3945,18 +3945,28 @@ function closeCreateDuprMatchForm() {
 async function runDuprReconcile() {
     if (!duprMatchHistoryState.canWrite) return;
     try {
-        setDuprReconcileStatus('Reconciling with DUPR...', 'neutral');
+        setDuprReconcileStatus('Reconciling next pending match with DUPR...', 'neutral');
         const payload = await duprHistoryRequest('POST', '/api/dupr/reconcile', {});
-        const summary = payload && payload.summary ? payload.summary : null;
+        const summary = payload?.summary || null;
         if (!summary) {
             setDuprReconcileStatus('Reconcile completed, but no summary was returned.', 'neutral');
             return;
         }
+        if (payload.done) {
+            setDuprReconcileStatus('No pending matches to reconcile.', 'neutral');
+            await loadDuprMatchHistory();
+            return;
+        }
+        const processed = payload?.processed || null;
+        const status = processed?.verificationStatus || 'updated';
+        const idText = processed?.id ? `match #${processed.id}` : 'match';
+        const remaining = Number.isInteger(summary.pendingRemaining) ? summary.pendingRemaining : 0;
+        const tone = payload.success ? 'success' : 'error';
         setDuprReconcileStatus(
-            `Reconcile complete: matched <strong>${summary.matchedCount}</strong>, remote missing in local <strong>${summary.remoteMissingInLocal}</strong>, local missing in remote <strong>${summary.localMissingInRemote}</strong>.`,
-            'success',
-            true
+            `Reconcile processed ${idText} (${status}). Pending remaining: ${remaining}.`,
+            tone
         );
+        await loadDuprMatchHistory();
     } catch (error) {
         const msg = (error && error.message && String(error.message).trim())
             ? String(error.message).trim()

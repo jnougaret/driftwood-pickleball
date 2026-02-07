@@ -3,22 +3,9 @@ import {
     ensureRequesterCanSubmitToConfiguredClub,
     getRequester,
     jsonResponse,
-    listSubmittedMatches
+    updateSubmittedMatchVerification
 } from './_submitted_matches.js';
 import { getDuprBase } from './_partner.js';
-
-function toEpochSeconds(input, fallback) {
-    if (typeof input === 'number' && Number.isFinite(input)) {
-        return Math.max(0, Math.floor(input));
-    }
-    if (typeof input === 'string' && input.trim()) {
-        const num = Number(input.trim());
-        if (Number.isFinite(num)) return Math.max(0, Math.floor(num));
-        const date = new Date(input);
-        if (!Number.isNaN(date.getTime())) return Math.floor(date.getTime() / 1000);
-    }
-    return fallback;
-}
 
 function getClubMatchSearchUrl(env, duprEnv) {
     const explicit = String(env.DUPR_CLUB_MATCH_SEARCH_URL || '').trim();
@@ -41,12 +28,7 @@ function normalizeRemoteMatch(remote) {
 
 function getRemoteMatches(payload) {
     if (!payload || typeof payload !== 'object') return [];
-    const candidates = [
-        payload.result,
-        payload.matches,
-        payload.data,
-        payload.items
-    ];
+    const candidates = [payload.result, payload.matches, payload.data, payload.items];
     for (const candidate of candidates) {
         if (Array.isArray(candidate)) return candidate;
         if (candidate && typeof candidate === 'object') {
@@ -58,12 +40,90 @@ function getRemoteMatches(payload) {
     return [];
 }
 
+function getMatchWindowEpoch(matchDate) {
+    const base = new Date(`${String(matchDate || '').trim()}T12:00:00Z`);
+    if (Number.isNaN(base.getTime())) {
+        const now = Date.now();
+        return {
+            startDate: Math.floor((now - (7 * 24 * 60 * 60 * 1000)) / 1000),
+            endDate: Math.floor(now / 1000)
+        };
+    }
+    const start = new Date(base.getTime() - (24 * 60 * 60 * 1000));
+    const end = new Date(base.getTime() + (24 * 60 * 60 * 1000));
+    return {
+        startDate: Math.floor(start.getTime() / 1000),
+        endDate: Math.floor(end.getTime() / 1000)
+    };
+}
+
+async function getPendingCount(env) {
+    const row = await env.DB.prepare(
+        `SELECT COUNT(*) AS count
+         FROM dupr_submitted_matches
+         WHERE deleted_at IS NULL
+           AND status = 'submitted'
+           AND (verification_status IS NULL OR verification_status != 'verified')`
+    ).first();
+    return Number(row?.count || 0);
+}
+
+async function getNextPendingMatch(env, requestedMatchId = null) {
+    if (Number.isInteger(requestedMatchId)) {
+        return await env.DB.prepare(
+            `SELECT *
+             FROM dupr_submitted_matches
+             WHERE id = ?
+               AND deleted_at IS NULL
+               AND status = 'submitted'
+             LIMIT 1`
+        ).bind(requestedMatchId).first();
+    }
+    return await env.DB.prepare(
+        `SELECT *
+         FROM dupr_submitted_matches
+         WHERE deleted_at IS NULL
+           AND status = 'submitted'
+           AND (verification_status IS NULL OR verification_status != 'verified')
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`
+    ).first();
+}
+
+async function updateMatchRemoteMeta(env, id, duprMatchId, duprMatchCode) {
+    await env.DB.prepare(
+        `UPDATE dupr_submitted_matches
+         SET dupr_match_id = ?,
+             dupr_match_code = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+    ).bind(
+        duprMatchId ?? null,
+        duprMatchCode ?? null,
+        id
+    ).run();
+}
+
+function findRemoteMatchForLocal(localMatch, remoteMatches) {
+    const localIdentifier = localMatch.identifier ? String(localMatch.identifier).trim() : null;
+    const localMatchId = Number.isInteger(Number(localMatch.dupr_match_id))
+        ? Number(localMatch.dupr_match_id)
+        : null;
+    const localMatchCode = localMatch.dupr_match_code ? String(localMatch.dupr_match_code).trim() : null;
+    return remoteMatches.find(remote => (
+        (localIdentifier && remote.identifier && localIdentifier === remote.identifier)
+        || (localMatchId !== null && remote.matchId !== null && localMatchId === remote.matchId)
+        || (localMatchCode && remote.matchCode && localMatchCode === remote.matchCode)
+    )) || null;
+}
+
 export async function onRequestPost({ request, env }) {
     try {
         const auth = await verifyClerkToken(request);
         if (auth.error) {
             return jsonResponse({ error: auth.error }, auth.status);
         }
+
         const requester = await getRequester(env, auth.userId);
         if (!requester || requester.is_admin !== 1) {
             return jsonResponse({ error: 'Forbidden' }, 403);
@@ -81,18 +141,28 @@ export async function onRequestPost({ request, env }) {
             body = {};
         }
 
-    const nowEpoch = Math.floor(Date.now() / 1000);
-    const defaultStart = nowEpoch - (30 * 24 * 60 * 60);
-        const startDate = toEpochSeconds(body.startDate, defaultStart);
-        const endDate = toEpochSeconds(body.endDate, nowEpoch);
-        const offset = Number.isInteger(body.offset) ? Math.max(0, body.offset) : 0;
-        const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(50, body.limit)) : 20;
+        const requestedMatchId = Number.isInteger(body?.matchId) ? body.matchId : null;
+        const localMatch = await getNextPendingMatch(env, requestedMatchId);
+        if (!localMatch) {
+            const pendingRemaining = await getPendingCount(env);
+            return jsonResponse({
+                success: true,
+                done: true,
+                message: 'No pending matches to reconcile.',
+                summary: {
+                    processedCount: 0,
+                    pendingRemaining
+                }
+            });
+        }
 
         const endpoint = getClubMatchSearchUrl(env, access.duprEnv);
+        const { startDate, endDate } = getMatchWindowEpoch(localMatch.match_date);
+        const eventFormat = String(localMatch.format || 'DOUBLES').toUpperCase();
         const searchPayload = {
-            offset,
-            limit,
-            eventFormat: ['DOUBLES'],
+            offset: 0,
+            limit: 20,
+            eventFormat: [eventFormat],
             startDate,
             endDate,
             clubId: access.configuredClubId
@@ -101,7 +171,7 @@ export async function onRequestPost({ request, env }) {
         let response;
         try {
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 12000);
+            const timer = setTimeout(() => controller.abort(), 10000);
             response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -113,7 +183,26 @@ export async function onRequestPost({ request, env }) {
             });
             clearTimeout(timer);
         } catch (error) {
-            return jsonResponse({ error: 'Unable to reach DUPR club match search endpoint' }, 502);
+            await updateSubmittedMatchVerification(
+                env,
+                localMatch.id,
+                'verify_failed',
+                'Reconcile failed: DUPR endpoint unreachable'
+            );
+            const pendingRemaining = await getPendingCount(env);
+            return jsonResponse({
+                success: false,
+                processed: {
+                    id: localMatch.id,
+                    identifier: localMatch.identifier,
+                    verificationStatus: 'verify_failed'
+                },
+                error: 'Unable to reach DUPR club match search endpoint',
+                summary: {
+                    processedCount: 1,
+                    pendingRemaining
+                }
+            });
         }
 
         const text = await response.text();
@@ -125,76 +214,83 @@ export async function onRequestPost({ request, env }) {
         }
 
         if (!response.ok) {
+            await updateSubmittedMatchVerification(
+                env,
+                localMatch.id,
+                'verify_failed',
+                typeof remotePayload === 'string' ? remotePayload.slice(0, 2000) : JSON.stringify(remotePayload)
+            );
+            const pendingRemaining = await getPendingCount(env);
             return jsonResponse({
+                success: false,
+                processed: {
+                    id: localMatch.id,
+                    identifier: localMatch.identifier,
+                    verificationStatus: 'verify_failed'
+                },
                 error: 'DUPR club match search failed',
                 status: response.status,
-                details: remotePayload
-            }, 502);
+                summary: {
+                    processedCount: 1,
+                    pendingRemaining
+                }
+            });
         }
 
-        const localMatches = await listSubmittedMatches(env, 1000);
-        const localByIdentifier = new Map();
-        const localByMatchId = new Map();
-        const localByMatchCode = new Map();
-        localMatches.forEach(match => {
-            if (match.identifier) localByIdentifier.set(String(match.identifier).trim(), match);
-            if (Number.isInteger(Number(match.dupr_match_id))) localByMatchId.set(Number(match.dupr_match_id), match);
-            if (match.dupr_match_code) localByMatchCode.set(String(match.dupr_match_code).trim(), match);
-        });
+        const remoteMatches = getRemoteMatches(remotePayload)
+            .map(normalizeRemoteMatch)
+            .filter(Boolean);
+        const found = findRemoteMatchForLocal(localMatch, remoteMatches);
 
-        const remoteMatchesRaw = getRemoteMatches(remotePayload);
-        const remoteMatches = remoteMatchesRaw.map(normalizeRemoteMatch).filter(Boolean);
+        if (!found) {
+            await updateSubmittedMatchVerification(
+                env,
+                localMatch.id,
+                'verify_failed',
+                'Reconcile: match not found in DUPR club search'
+            );
+            const pendingRemaining = await getPendingCount(env);
+            return jsonResponse({
+                success: true,
+                processed: {
+                    id: localMatch.id,
+                    identifier: localMatch.identifier,
+                    verificationStatus: 'verify_failed'
+                },
+                summary: {
+                    processedCount: 1,
+                    pendingRemaining,
+                    remoteCandidates: remoteMatches.length
+                }
+            });
+        }
 
-        let linkedCount = 0;
-        const missingInLocal = [];
-        remoteMatches.forEach(match => {
-            const found =
-                (match.identifier && localByIdentifier.get(match.identifier)) ||
-                (Number.isInteger(match.matchId) ? localByMatchId.get(match.matchId) : null) ||
-                (match.matchCode && localByMatchCode.get(match.matchCode));
-            if (found) {
-                linkedCount += 1;
-            } else {
-                missingInLocal.push(match);
-            }
-        });
+        await updateMatchRemoteMeta(env, localMatch.id, found.matchId, found.matchCode);
+        await updateSubmittedMatchVerification(
+            env,
+            localMatch.id,
+            'verified',
+            JSON.stringify(found)
+        );
 
-        const localNotInRemote = localMatches.filter(match => {
-            const identifier = match.identifier ? String(match.identifier).trim() : null;
-            const matchId = Number.isInteger(Number(match.dupr_match_id)) ? Number(match.dupr_match_id) : null;
-            const matchCode = match.dupr_match_code ? String(match.dupr_match_code).trim() : null;
-            return !remoteMatches.some(remote => (
-                (identifier && remote.identifier && identifier === remote.identifier) ||
-                (matchId !== null && remote.matchId !== null && matchId === remote.matchId) ||
-                (matchCode && remote.matchCode && matchCode === remote.matchCode)
-            ));
-        });
-
+        const pendingRemaining = await getPendingCount(env);
         return jsonResponse({
             success: true,
-            environment: access.duprEnv,
-            endpoint,
-            request: searchPayload,
-            summary: {
-                remoteCount: remoteMatches.length,
-                localCount: localMatches.length,
-                matchedCount: linkedCount,
-                remoteMissingInLocal: missingInLocal.length,
-                localMissingInRemote: localNotInRemote.length
+            processed: {
+                id: localMatch.id,
+                identifier: localMatch.identifier,
+                duprMatchId: found.matchId,
+                duprMatchCode: found.matchCode,
+                verificationStatus: 'verified'
             },
-            remoteMissingInLocal: missingInLocal.slice(0, 50),
-            localMissingInRemote: localNotInRemote.slice(0, 50).map(match => ({
-                id: match.id,
-                identifier: match.identifier,
-                duprMatchId: match.dupr_match_id,
-                duprMatchCode: match.dupr_match_code,
-                eventName: match.event_name,
-                matchDate: match.match_date,
-                status: match.status
-            }))
+            summary: {
+                processedCount: 1,
+                pendingRemaining
+            }
         });
     } catch (error) {
         return jsonResponse({
+            success: false,
             error: 'Unexpected reconcile failure',
             details: String(error && error.message ? error.message : error)
         }, 500);
