@@ -3791,6 +3791,26 @@ function canManageDuprMatches() {
     return Boolean(window.authProfile && window.authProfile.isAdmin);
 }
 
+function setDuprReconcileStatus(messageHtml, tone = 'neutral') {
+    const box = document.getElementById('dupr-reconcile-status');
+    if (!box) return;
+    const toneClass = tone === 'error'
+        ? 'border-red-200 bg-red-50 text-red-700'
+        : (tone === 'success'
+            ? 'border-green-200 bg-green-50 text-green-700'
+            : 'border-gray-200 bg-gray-50 text-gray-700');
+    box.className = `mb-5 border rounded-lg p-3 text-sm ${toneClass}`;
+    box.innerHTML = messageHtml;
+    box.classList.remove('hidden');
+}
+
+function clearDuprReconcileStatus() {
+    const box = document.getElementById('dupr-reconcile-status');
+    if (!box) return;
+    box.classList.add('hidden');
+    box.innerHTML = '';
+}
+
 async function refreshDuprMatchHistoryPermissions() {
     duprMatchHistoryState.canWrite = false;
     duprMatchHistoryState.permissionsLoaded = false;
@@ -3895,6 +3915,25 @@ function closeCreateDuprMatchForm() {
     if (formWrap) {
         formWrap.classList.add('hidden');
         formWrap.innerHTML = '';
+    }
+}
+
+async function runDuprReconcile() {
+    if (!duprMatchHistoryState.canWrite) return;
+    try {
+        setDuprReconcileStatus('Reconciling with DUPR...', 'neutral');
+        const payload = await duprHistoryRequest('POST', '/api/dupr/reconcile', {});
+        const summary = payload && payload.summary ? payload.summary : null;
+        if (!summary) {
+            setDuprReconcileStatus('Reconcile completed, but no summary was returned.', 'neutral');
+            return;
+        }
+        setDuprReconcileStatus(
+            `Reconcile complete: matched <strong>${summary.matchedCount}</strong>, remote missing in local <strong>${summary.remoteMissingInLocal}</strong>, local missing in remote <strong>${summary.localMissingInRemote}</strong>.`,
+            'success'
+        );
+    } catch (error) {
+        setDuprReconcileStatus(error.message || 'Unable to reconcile DUPR history.', 'error');
     }
 }
 
@@ -4068,6 +4107,7 @@ function renderDuprMatchHistory() {
     const section = getDuprHistorySection();
     if (!section) return;
     const createButton = document.getElementById('dupr-match-create-button');
+    const reconcileButton = document.getElementById('dupr-match-reconcile-button');
     const list = document.getElementById('dupr-match-history-list');
     if (!list) return;
 
@@ -4081,14 +4121,22 @@ function renderDuprMatchHistory() {
         createButton.dataset.bound = 'true';
         createButton.addEventListener('click', openCreateDuprMatchForm);
     }
+    if (reconcileButton && reconcileButton.dataset.bound !== 'true') {
+        reconcileButton.dataset.bound = 'true';
+        reconcileButton.addEventListener('click', runDuprReconcile);
+    }
     if (createButton) {
         createButton.classList.toggle('hidden', !duprMatchHistoryState.canWrite);
+    }
+    if (reconcileButton) {
+        reconcileButton.classList.toggle('hidden', !duprMatchHistoryState.canWrite);
     }
     if (!duprMatchHistoryState.canWrite) {
         closeCreateDuprMatchForm();
         if (duprMatchHistoryState.editId !== null) {
             duprMatchHistoryState.editId = null;
         }
+        clearDuprReconcileStatus();
     }
 
     if (!duprMatchHistoryState.matches.length) {
@@ -4111,6 +4159,10 @@ function renderDuprMatchHistory() {
         const score = matchScoreSummary(match);
         const canEdit = duprMatchHistoryState.canWrite && match.status !== 'deleted';
         const canDelete = duprMatchHistoryState.canWrite && match.status !== 'deleted';
+        const verificationTone = match.verificationStatus === 'verified'
+            ? 'text-green-700'
+            : (match.verificationStatus ? 'text-amber-700' : 'text-gray-500');
+        const verificationLabel = match.verificationStatus || 'not_checked';
 
         if (!isEditing) {
             return `
@@ -4121,6 +4173,7 @@ function renderDuprMatchHistory() {
                         <span class="text-gray-600">${pairText(match.teamA.player1, match.teamA.player2)} vs ${pairText(match.teamB.player1, match.teamB.player2)}</span>
                         <span class="font-mono text-xs text-gray-700">${score || 'No score'}</span>
                         <span class="font-semibold ${statusClass} uppercase text-xs">${match.status}</span>
+                        <span class="font-semibold ${verificationTone} uppercase text-xs">${verificationLabel}</span>
                         <div class="md:ml-auto flex items-center gap-1">
                             <button onclick="beginEditDuprMatch(${match.id})" class="px-2 py-1 rounded border border-gray-300 text-ocean-blue ${canEdit ? 'hover:bg-gray-100' : 'opacity-40 cursor-not-allowed'}" ${canEdit ? '' : 'disabled'} title="Edit and resubmit">✎</button>
                             <button onclick="deleteDuprMatch(${match.id})" class="px-2 py-1 rounded border border-red-300 text-red-600 ${canDelete ? 'hover:bg-red-50' : 'opacity-40 cursor-not-allowed'}" ${canDelete ? '' : 'disabled'} title="Delete from DUPR">✕</button>
@@ -4217,6 +4270,7 @@ window.saveEditDuprMatch = saveEditDuprMatch;
 window.deleteDuprMatch = deleteDuprMatch;
 window.previousDuprHistoryPage = previousDuprHistoryPage;
 window.nextDuprHistoryPage = nextDuprHistoryPage;
+window.runDuprReconcile = runDuprReconcile;
 
 // ========================================
 // INITIALIZATION

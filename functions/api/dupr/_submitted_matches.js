@@ -65,12 +65,32 @@ export async function ensureSubmittedMatchesTable(env) {
             status TEXT NOT NULL DEFAULT 'submitted',
             last_status_code INTEGER,
             last_response TEXT,
+            verification_status TEXT,
+            verification_response TEXT,
+            verified_at DATETIME,
             deleted_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(identifier, dupr_env)
         )
     `).run();
+    await ensureSubmittedMatchesColumns(env);
+}
+
+async function addColumnIfMissing(env, ddl) {
+    try {
+        await env.DB.prepare(ddl).run();
+    } catch (error) {
+        const message = String(error && error.message ? error.message : error);
+        if (message.includes('duplicate column name')) return;
+        throw error;
+    }
+}
+
+async function ensureSubmittedMatchesColumns(env) {
+    await addColumnIfMissing(env, 'ALTER TABLE dupr_submitted_matches ADD COLUMN verification_status TEXT');
+    await addColumnIfMissing(env, 'ALTER TABLE dupr_submitted_matches ADD COLUMN verification_response TEXT');
+    await addColumnIfMissing(env, 'ALTER TABLE dupr_submitted_matches ADD COLUMN verified_at DATETIME');
 }
 
 export async function getRequester(env, userId) {
@@ -216,6 +236,41 @@ export function getDeleteMatchUrl(env, duprEnv) {
     return `${getDuprBase(duprEnv)}/api/match/v1.0/delete`;
 }
 
+export function getViewMatchUrl(env, duprEnv, matchId) {
+    const explicit = (env.DUPR_MATCH_VIEW_URL || '').trim();
+    if (explicit) return explicit.replace('{matchId}', encodeURIComponent(String(matchId)));
+    return `${getDuprBase(duprEnv)}/api/match/v1.0/${encodeURIComponent(String(matchId))}`;
+}
+
+export async function fetchDuprMatchById(env, accessToken, duprEnv, matchId) {
+    const url = getViewMatchUrl(env, duprEnv, matchId);
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+    } catch (error) {
+        return { ok: false, status: 502, error: 'Unable to reach DUPR match view endpoint' };
+    }
+
+    const text = await response.text();
+    let payload = null;
+    try {
+        payload = text ? JSON.parse(text) : null;
+    } catch (error) {
+        payload = text;
+    }
+
+    if (!response.ok) {
+        return { ok: false, status: response.status, error: 'DUPR match view failed', response: payload };
+    }
+    return { ok: true, status: response.status, payload };
+}
+
 export function parseDuprMatchMeta(payload, fallbackIdentifier = null, fallbackIndex = 0) {
     const result = payload && typeof payload === 'object' ? (payload.result ?? payload.data ?? payload.matches ?? null) : null;
     const candidateArray = Array.isArray(result)
@@ -247,8 +302,8 @@ export async function insertSubmittedMatch(env, record) {
             team_a_player1, team_a_player2, team_b_player1, team_b_player2,
             team_a_player1_dupr, team_a_player2_dupr, team_b_player1_dupr, team_b_player2_dupr,
             team_a_game1, team_b_game1, team_a_game2, team_b_game2, team_a_game3, team_b_game3, team_a_game4, team_b_game4, team_a_game5, team_b_game5,
-            status, last_status_code, last_response, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, last_status_code, last_response, verification_status, verification_response, verified_at, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(identifier, dupr_env) DO UPDATE SET
             tournament_id = excluded.tournament_id,
             submission_id = excluded.submission_id,
@@ -282,6 +337,9 @@ export async function insertSubmittedMatch(env, record) {
             status = excluded.status,
             last_status_code = excluded.last_status_code,
             last_response = excluded.last_response,
+            verification_status = excluded.verification_status,
+            verification_response = excluded.verification_response,
+            verified_at = excluded.verified_at,
             deleted_at = excluded.deleted_at,
             updated_at = CURRENT_TIMESTAMP`
     ).bind(
@@ -320,7 +378,26 @@ export async function insertSubmittedMatch(env, record) {
         record.status || 'submitted',
         record.lastStatusCode ?? null,
         record.lastResponse || null,
+        record.verificationStatus || null,
+        record.verificationResponse || null,
+        record.verifiedAt || null,
         record.deletedAt || null
+    ).run();
+}
+
+export async function updateSubmittedMatchVerification(env, id, verificationStatus, verificationResponse) {
+    await ensureSubmittedMatchesTable(env);
+    await env.DB.prepare(
+        `UPDATE dupr_submitted_matches
+         SET verification_status = ?,
+             verification_response = ?,
+             verified_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+    ).bind(
+        verificationStatus || null,
+        verificationResponse || null,
+        id
     ).run();
 }
 

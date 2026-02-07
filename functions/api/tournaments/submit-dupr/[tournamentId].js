@@ -1,6 +1,11 @@
 import { verifyClerkToken } from '../../_auth.js';
 import { fetchPartnerAccessToken, getDuprEnv, getDuprBase } from '../../dupr/_partner.js';
-import { insertSubmittedMatch, parseDuprMatchMeta } from '../../dupr/_submitted_matches.js';
+import {
+    fetchDuprMatchById,
+    insertSubmittedMatch,
+    parseDuprMatchMeta,
+    updateSubmittedMatchVerification
+} from '../../dupr/_submitted_matches.js';
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -634,14 +639,17 @@ export async function onRequestPost({ request, env, params }) {
         }, 502);
     }
     const clubMembership = membership.membership.find(item => Number(item?.clubId) === clubId) || null;
-    if (!clubMembership) {
+    const requesterEmail = String(requester.email || '').trim().toLowerCase();
+    const masterEmail = String(env.MASTER_ADMIN_EMAIL || '').trim().toLowerCase();
+    const isMasterAdmin = Boolean(masterEmail && requesterEmail && requesterEmail === masterEmail);
+    if (!clubMembership && !isMasterAdmin) {
         return jsonResponse({
             error: 'Submitting admin is not a member of configured DUPR club',
             clubId
         }, 403);
     }
-    const role = String(clubMembership.role || '').toUpperCase();
-    if (role !== 'DIRECTOR' && role !== 'ORGANIZER') {
+    const role = String(clubMembership?.role || '').toUpperCase();
+    if (!isMasterAdmin && role !== 'DIRECTOR' && role !== 'ORGANIZER') {
         return jsonResponse({
             error: 'Submitting admin must be DUPR club DIRECTOR or ORGANIZER',
             clubId,
@@ -742,6 +750,27 @@ export async function onRequestPost({ request, env, params }) {
             lastStatusCode: response.status,
             lastResponse: safeJsonString(responseBody)
         });
+
+        const saved = await env.DB.prepare(
+            `SELECT id FROM dupr_submitted_matches
+             WHERE identifier = ? AND dupr_env = ?
+             ORDER BY id DESC
+             LIMIT 1`
+        ).bind(parsed.identifier || meta.identifier, duprEnv).first();
+        const insertedId = saved && Number.isInteger(saved.id) ? saved.id : null;
+        if (insertedId && Number.isInteger(parsed.matchId)) {
+            const verification = await fetchDuprMatchById(env, token.accessToken, duprEnv, parsed.matchId);
+            await updateSubmittedMatchVerification(
+                env,
+                insertedId,
+                verification.ok ? 'verified' : 'verify_failed',
+                safeJsonString(verification.ok ? (verification.payload || {}) : {
+                    error: verification.error || 'Verification failed',
+                    status: verification.status,
+                    response: verification.response || null
+                })
+            );
+        }
     }
 
     return jsonResponse({

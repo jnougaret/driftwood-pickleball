@@ -1,6 +1,7 @@
 import { verifyClerkToken } from '../../_auth.js';
 import {
     ensureRequesterCanSubmitToConfiguredClub,
+    fetchDuprMatchById,
     getCreateMatchUrl,
     getEligiblePlayers,
     getRequester,
@@ -8,7 +9,8 @@ import {
     jsonResponse,
     listSubmittedMatches,
     normalizeGames,
-    parseDuprMatchMeta
+    parseDuprMatchMeta,
+    updateSubmittedMatchVerification
 } from '../_submitted_matches.js';
 
 function buildIdentifier(prefix = 'manual') {
@@ -70,7 +72,10 @@ function mapForClient(row) {
         submittedByName: row.submitted_by_name || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        deletedAt: row.deleted_at
+        deletedAt: row.deleted_at,
+        verificationStatus: row.verification_status || null,
+        verificationResponse: row.verification_response || null,
+        verifiedAt: row.verified_at || null
     };
 }
 
@@ -248,6 +253,27 @@ export async function onRequestPost({ request, env }) {
         lastStatusCode: response.status,
         lastResponse: JSON.stringify(responseBody || {})
     });
+
+    const saved = await env.DB.prepare(
+        `SELECT id FROM dupr_submitted_matches
+         WHERE identifier = ? AND dupr_env = ?
+         ORDER BY id DESC
+         LIMIT 1`
+    ).bind(meta.identifier || identifier, access.duprEnv).first();
+    const insertedId = saved && Number.isInteger(saved.id) ? saved.id : null;
+    if (insertedId && Number.isInteger(meta.matchId)) {
+        const verification = await fetchDuprMatchById(env, access.token, access.duprEnv, meta.matchId);
+        await updateSubmittedMatchVerification(
+            env,
+            insertedId,
+            verification.ok ? 'verified' : 'verify_failed',
+            JSON.stringify(verification.ok ? (verification.payload || {}) : {
+                error: verification.error || 'Verification failed',
+                status: verification.status,
+                response: verification.response || null
+            })
+        );
+    }
 
     const rows = await listSubmittedMatches(env, 500);
     return jsonResponse({

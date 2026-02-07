@@ -1,13 +1,15 @@
 import { verifyClerkToken } from '../../_auth.js';
 import {
     ensureRequesterCanSubmitToConfiguredClub,
+    fetchDuprMatchById,
     getDeleteMatchUrl,
     getRequester,
     getSubmittedMatchById,
     getUpdateMatchUrl,
     jsonResponse,
     normalizeGames,
-    toIntegerOrNull
+    toIntegerOrNull,
+    updateSubmittedMatchVerification
 } from '../_submitted_matches.js';
 
 async function parseResponseBody(response) {
@@ -163,6 +165,18 @@ export async function onRequestPatch({ request, env, params }) {
         JSON.stringify(responseBody || {}),
         matchId
     ).run();
+
+    const verification = await fetchDuprMatchById(env, access.token, access.duprEnv, existing.dupr_match_id);
+    await updateSubmittedMatchVerification(
+        env,
+        matchId,
+        verification.ok ? 'verified' : 'verify_failed',
+        JSON.stringify(verification.ok ? (verification.payload || {}) : {
+            error: verification.error || 'Verification failed',
+            status: verification.status,
+            response: verification.response || null
+        })
+    );
 
     return jsonResponse({ success: true });
 }
