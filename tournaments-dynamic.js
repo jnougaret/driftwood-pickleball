@@ -3903,6 +3903,10 @@ async function duprHistoryRequest(method, url, body = null) {
         body: body ? JSON.stringify(body) : undefined
     });
     const text = await response.text();
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const looksLikeHtml = contentType.includes('text/html')
+        || /^\s*<!doctype html/i.test(text)
+        || /^\s*<html/i.test(text);
     let payload = {};
     try {
         payload = text ? JSON.parse(text) : {};
@@ -3910,6 +3914,9 @@ async function duprHistoryRequest(method, url, body = null) {
         payload = { raw: text };
     }
     if (!response.ok) {
+        if (looksLikeHtml) {
+            throw new Error(`Service temporarily unavailable (${response.status}). Please retry.`);
+        }
         const details = payload && payload.details
             ? `: ${typeof payload.details === 'string' ? payload.details : JSON.stringify(payload.details)}`
             : '';
