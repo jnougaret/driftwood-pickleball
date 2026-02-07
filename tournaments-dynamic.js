@@ -3799,6 +3799,12 @@ async function refreshDuprMatchHistoryPermissions() {
         return;
     }
 
+    if (window.authProfile && window.authProfile.isMasterAdmin) {
+        duprMatchHistoryState.canWrite = true;
+        duprMatchHistoryState.permissionsLoaded = true;
+        return;
+    }
+
     const auth = window.authUtils;
     if (!auth || !auth.getAuthToken) {
         return;

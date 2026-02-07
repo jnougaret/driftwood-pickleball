@@ -132,6 +132,19 @@ export async function ensureRequesterCanSubmitToConfiguredClub(env, requester) {
     }
 
     const duprEnv = token.environment || getDuprEnv(env);
+
+    // Master admin can operate regardless of DUPR club membership role.
+    const masterEmail = String(env.MASTER_ADMIN_EMAIL || '').trim().toLowerCase();
+    const requesterEmail = String(requester.email || '').trim().toLowerCase();
+    if (masterEmail && requesterEmail && masterEmail === requesterEmail) {
+        return {
+            ok: true,
+            token: token.accessToken,
+            duprEnv,
+            configuredClubId
+        };
+    }
+
     const membershipEndpoint = getClubMembershipUrl(env, duprEnv, requester.dupr_id);
     let membershipResponse;
     try {
