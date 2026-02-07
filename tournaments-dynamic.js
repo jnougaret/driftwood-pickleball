@@ -3946,7 +3946,10 @@ async function runDuprReconcile() {
             'success'
         );
     } catch (error) {
-        setDuprReconcileStatus(error.message || 'Unable to reconcile DUPR history.', 'error');
+        const msg = (error && error.message && String(error.message).trim())
+            ? String(error.message).trim()
+            : 'Unable to reconcile DUPR history.';
+        setDuprReconcileStatus(msg, 'error');
     }
 }
 
