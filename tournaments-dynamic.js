@@ -8,6 +8,13 @@ let tournamentStore = {
     results: []
 };
 
+let duprMatchHistoryState = {
+    matches: [],
+    eligiblePlayers: [],
+    createOpen: false,
+    editId: null
+};
+
 const LEGACY_RESULTS_DATA = {
     jan24: {
         matches: [
@@ -3772,6 +3779,341 @@ function renderBracket(tournamentId, data) {
 }
 
 // ========================================
+// DUPR SUBMITTED MATCH HISTORY (ADMIN ONLY)
+// ========================================
+
+function canManageDuprMatches() {
+    return Boolean(window.authProfile && window.authProfile.isAdmin);
+}
+
+function pairText(player1, player2) {
+    return player2 ? `${player1} / ${player2}` : player1;
+}
+
+function matchScoreSummary(match) {
+    const parts = [];
+    const games = [
+        [match.teamA.game1, match.teamB.game1],
+        [match.teamA.game2, match.teamB.game2],
+        [match.teamA.game3, match.teamB.game3],
+        [match.teamA.game4, match.teamB.game4],
+        [match.teamA.game5, match.teamB.game5]
+    ];
+    games.forEach(([a, b]) => {
+        if (Number.isInteger(a) && Number.isInteger(b)) {
+            parts.push(`${a}-${b}`);
+        }
+    });
+    return parts.join(', ');
+}
+
+function normalizeDateLabel(value) {
+    const date = value ? new Date(`${value}T00:00:00`) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'Date TBD';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function duprHistoryRequest(method, url, body = null) {
+    const auth = window.authUtils;
+    if (!auth || !auth.getAuthToken) {
+        throw new Error('Sign in to manage DUPR matches');
+    }
+    const token = await auth.getAuthToken();
+    if (!token) {
+        throw new Error('Sign in to manage DUPR matches');
+    }
+
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload.error || `Request failed (${response.status})`);
+    }
+    return payload;
+}
+
+function getDuprHistorySection() {
+    return document.getElementById('dupr-match-history-section');
+}
+
+function closeCreateDuprMatchForm() {
+    duprMatchHistoryState.createOpen = false;
+    const formWrap = document.getElementById('dupr-match-form-wrap');
+    if (formWrap) {
+        formWrap.classList.add('hidden');
+        formWrap.innerHTML = '';
+    }
+}
+
+function buildCreatePlayerOptions() {
+    return duprMatchHistoryState.eligiblePlayers.map(player => (
+        `<option value="${player.id}">${player.displayName} (${player.duprId})</option>`
+    )).join('');
+}
+
+function openCreateDuprMatchForm() {
+    duprMatchHistoryState.createOpen = true;
+    const formWrap = document.getElementById('dupr-match-form-wrap');
+    if (!formWrap) return;
+    const playerOptions = buildCreatePlayerOptions();
+    if (!playerOptions) {
+        formWrap.classList.remove('hidden');
+        formWrap.innerHTML = '<p class="text-sm text-red-600">No eligible linked players found.</p>';
+        return;
+    }
+
+    formWrap.classList.remove('hidden');
+    formWrap.innerHTML = `
+        <div class="space-y-3">
+            <h3 class="text-lg font-semibold text-ocean-blue">Create DUPR Match</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input id="dupr-create-event" class="px-3 py-2 border border-gray-300 rounded" placeholder="Event name" />
+                <input id="dupr-create-date" type="date" class="px-3 py-2 border border-gray-300 rounded" />
+                <input id="dupr-create-bracket" class="px-3 py-2 border border-gray-300 rounded" placeholder="Bracket (optional)" />
+                <input id="dupr-create-location" class="px-3 py-2 border border-gray-300 rounded" placeholder="Location (optional)" />
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="space-y-2">
+                    <p class="text-xs font-semibold text-gray-600 uppercase">Team A</p>
+                    <select id="dupr-create-team-a1" class="w-full px-3 py-2 border border-gray-300 rounded"><option value="">Player 1</option>${playerOptions}</select>
+                    <select id="dupr-create-team-a2" class="w-full px-3 py-2 border border-gray-300 rounded"><option value="">Player 2 (optional)</option>${playerOptions}</select>
+                </div>
+                <div class="space-y-2">
+                    <p class="text-xs font-semibold text-gray-600 uppercase">Team B</p>
+                    <select id="dupr-create-team-b1" class="w-full px-3 py-2 border border-gray-300 rounded"><option value="">Player 1</option>${playerOptions}</select>
+                    <select id="dupr-create-team-b2" class="w-full px-3 py-2 border border-gray-300 rounded"><option value="">Player 2 (optional)</option>${playerOptions}</select>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <input id="dupr-create-g1a" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="A G1" />
+                <input id="dupr-create-g1b" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="B G1" />
+                <span class="text-xs text-gray-500 self-center">Game 1 (required)</span>
+                <input id="dupr-create-g2a" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="A G2" />
+                <input id="dupr-create-g2b" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="B G2" />
+                <span class="text-xs text-gray-500 self-center">Game 2 (optional)</span>
+                <input id="dupr-create-g3a" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="A G3" />
+                <input id="dupr-create-g3b" type="number" min="0" class="px-2 py-2 border border-gray-300 rounded" placeholder="B G3" />
+                <span class="text-xs text-gray-500 self-center">Game 3 (optional)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="submitCreateDuprMatch()" class="bg-ocean-blue text-white px-4 py-2 rounded-lg font-semibold hover:bg-ocean-teal transition">Create</button>
+                <button onclick="closeCreateDuprMatchForm()" class="bg-white border border-gray-300 text-ocean-blue px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition">Cancel</button>
+            </div>
+        </div>
+    `;
+}
+
+function buildGamesFromForm(prefix) {
+    const pairs = [
+        [`${prefix}-g1a`, `${prefix}-g1b`],
+        [`${prefix}-g2a`, `${prefix}-g2b`],
+        [`${prefix}-g3a`, `${prefix}-g3b`]
+    ];
+    const games = [];
+    pairs.forEach(([aId, bId]) => {
+        const aRaw = document.getElementById(aId)?.value;
+        const bRaw = document.getElementById(bId)?.value;
+        const hasA = String(aRaw || '').trim() !== '';
+        const hasB = String(bRaw || '').trim() !== '';
+        if (!hasA && !hasB) return;
+        if (!hasA || !hasB) {
+            throw new Error('Both team scores are required for each entered game');
+        }
+        const teamA = Number.parseInt(aRaw, 10);
+        const teamB = Number.parseInt(bRaw, 10);
+        if (!Number.isInteger(teamA) || !Number.isInteger(teamB) || teamA === teamB) {
+            throw new Error('Game scores must be integers and cannot be tied');
+        }
+        games.push({ teamA, teamB });
+    });
+    return games;
+}
+
+async function submitCreateDuprMatch() {
+    try {
+        const payload = {
+            eventName: (document.getElementById('dupr-create-event')?.value || '').trim(),
+            matchDate: (document.getElementById('dupr-create-date')?.value || '').trim(),
+            bracketName: (document.getElementById('dupr-create-bracket')?.value || '').trim(),
+            location: (document.getElementById('dupr-create-location')?.value || '').trim(),
+            teamA: {
+                player1Id: (document.getElementById('dupr-create-team-a1')?.value || '').trim(),
+                player2Id: (document.getElementById('dupr-create-team-a2')?.value || '').trim()
+            },
+            teamB: {
+                player1Id: (document.getElementById('dupr-create-team-b1')?.value || '').trim(),
+                player2Id: (document.getElementById('dupr-create-team-b2')?.value || '').trim()
+            },
+            games: buildGamesFromForm('dupr-create')
+        };
+        await duprHistoryRequest('POST', '/api/dupr/submitted-matches', payload);
+        closeCreateDuprMatchForm();
+        await loadDuprMatchHistory();
+    } catch (error) {
+        alert(error.message || 'Unable to create DUPR match');
+    }
+}
+
+function beginEditDuprMatch(matchId) {
+    duprMatchHistoryState.editId = Number(matchId);
+    renderDuprMatchHistory();
+}
+
+function cancelEditDuprMatch() {
+    duprMatchHistoryState.editId = null;
+    renderDuprMatchHistory();
+}
+
+async function saveEditDuprMatch(matchId) {
+    try {
+        const id = Number(matchId);
+        const payload = {
+            eventName: (document.getElementById(`dupr-edit-event-${id}`)?.value || '').trim(),
+            matchDate: (document.getElementById(`dupr-edit-date-${id}`)?.value || '').trim(),
+            bracketName: (document.getElementById(`dupr-edit-bracket-${id}`)?.value || '').trim(),
+            location: (document.getElementById(`dupr-edit-location-${id}`)?.value || '').trim(),
+            games: buildGamesFromForm(`dupr-edit-${id}`)
+        };
+        await duprHistoryRequest('PATCH', `/api/dupr/submitted-matches/${id}`, payload);
+        duprMatchHistoryState.editId = null;
+        await loadDuprMatchHistory();
+    } catch (error) {
+        alert(error.message || 'Unable to update DUPR match');
+    }
+}
+
+async function deleteDuprMatch(matchId) {
+    const id = Number(matchId);
+    const confirmed = window.confirm('Delete this match from DUPR?');
+    if (!confirmed) return;
+    try {
+        await duprHistoryRequest('DELETE', `/api/dupr/submitted-matches/${id}`);
+        if (duprMatchHistoryState.editId === id) {
+            duprMatchHistoryState.editId = null;
+        }
+        await loadDuprMatchHistory();
+    } catch (error) {
+        alert(error.message || 'Unable to delete DUPR match');
+    }
+}
+
+function renderDuprMatchHistory() {
+    const section = getDuprHistorySection();
+    if (!section) return;
+    const createButton = document.getElementById('dupr-match-create-button');
+    const list = document.getElementById('dupr-match-history-list');
+    if (!list) return;
+
+    if (!canManageDuprMatches()) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+    if (createButton && createButton.dataset.bound !== 'true') {
+        createButton.dataset.bound = 'true';
+        createButton.addEventListener('click', openCreateDuprMatchForm);
+    }
+
+    if (!duprMatchHistoryState.matches.length) {
+        list.innerHTML = '<p class="text-sm text-gray-600">No submitted matches yet.</p>';
+        return;
+    }
+
+    const rowsHtml = duprMatchHistoryState.matches.map(match => {
+        const isEditing = duprMatchHistoryState.editId === match.id;
+        const statusClass = match.status === 'deleted'
+            ? 'text-red-600'
+            : (match.status === 'updated' ? 'text-ocean-teal' : 'text-ocean-blue');
+        const score = matchScoreSummary(match);
+        const canEdit = match.status !== 'deleted' && Number.isInteger(match.duprMatchId);
+        const canDelete = match.status !== 'deleted' && Boolean(match.duprMatchCode);
+
+        if (!isEditing) {
+            return `
+                <div class="border border-gray-200 rounded-lg bg-gray-50 p-3">
+                    <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 text-sm">
+                        <span class="font-semibold text-ocean-blue whitespace-nowrap">${normalizeDateLabel(match.matchDate)}</span>
+                        <span class="font-semibold">${match.eventName}</span>
+                        <span class="text-gray-600">${pairText(match.teamA.player1, match.teamA.player2)} vs ${pairText(match.teamB.player1, match.teamB.player2)}</span>
+                        <span class="font-mono text-xs text-gray-700">${score || 'No score'}</span>
+                        <span class="font-semibold ${statusClass} uppercase text-xs">${match.status}</span>
+                        <div class="md:ml-auto flex items-center gap-1">
+                            <button onclick="beginEditDuprMatch(${match.id})" class="px-2 py-1 rounded border border-gray-300 text-ocean-blue ${canEdit ? 'hover:bg-gray-100' : 'opacity-40 cursor-not-allowed'}" ${canEdit ? '' : 'disabled'} title="Edit and resubmit">✎</button>
+                            <button onclick="deleteDuprMatch(${match.id})" class="px-2 py-1 rounded border border-red-300 text-red-600 ${canDelete ? 'hover:bg-red-50' : 'opacity-40 cursor-not-allowed'}" ${canDelete ? '' : 'disabled'} title="Delete from DUPR">✕</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="border border-ocean-blue rounded-lg bg-white p-3 space-y-2">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <input id="dupr-edit-event-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.eventName || '').replace(/"/g, '&quot;')}" />
+                    <input id="dupr-edit-date-${match.id}" type="date" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${match.matchDate || ''}" />
+                    <input id="dupr-edit-bracket-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.bracketName || '').replace(/"/g, '&quot;')}" />
+                    <input id="dupr-edit-location-${match.id}" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${(match.location || '').replace(/"/g, '&quot;')}" />
+                </div>
+                <div class="grid grid-cols-6 gap-2 items-center">
+                    <span class="text-xs text-gray-600">G1</span>
+                    <input id="dupr-edit-${match.id}-g1a" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamA.game1) ? match.teamA.game1 : ''}" />
+                    <input id="dupr-edit-${match.id}-g1b" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamB.game1) ? match.teamB.game1 : ''}" />
+                    <span class="text-xs text-gray-600">G2</span>
+                    <input id="dupr-edit-${match.id}-g2a" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamA.game2) ? match.teamA.game2 : ''}" />
+                    <input id="dupr-edit-${match.id}-g2b" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamB.game2) ? match.teamB.game2 : ''}" />
+                    <span class="text-xs text-gray-600">G3</span>
+                    <input id="dupr-edit-${match.id}-g3a" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamA.game3) ? match.teamA.game3 : ''}" />
+                    <input id="dupr-edit-${match.id}-g3b" type="number" min="0" class="px-2 py-1 border border-gray-300 rounded text-sm" value="${Number.isInteger(match.teamB.game3) ? match.teamB.game3 : ''}" />
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button onclick="cancelEditDuprMatch()" class="px-2 py-1 rounded border border-gray-300 text-ocean-blue hover:bg-gray-100">✕</button>
+                    <button onclick="saveEditDuprMatch(${match.id})" class="px-2 py-1 rounded border border-ocean-blue text-ocean-blue hover:bg-gray-100">✓</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    list.innerHTML = rowsHtml;
+}
+
+async function loadDuprMatchHistory() {
+    const section = getDuprHistorySection();
+    if (!section) return;
+    if (!canManageDuprMatches()) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    try {
+        const payload = await duprHistoryRequest('GET', '/api/dupr/submitted-matches');
+        duprMatchHistoryState.matches = Array.isArray(payload.matches) ? payload.matches : [];
+        duprMatchHistoryState.eligiblePlayers = Array.isArray(payload.eligiblePlayers) ? payload.eligiblePlayers : [];
+        renderDuprMatchHistory();
+    } catch (error) {
+        section.classList.remove('hidden');
+        const list = document.getElementById('dupr-match-history-list');
+        if (list) {
+            list.innerHTML = `<p class="text-sm text-red-600">${error.message || 'Unable to load DUPR history.'}</p>`;
+        }
+    }
+}
+
+window.openCreateDuprMatchForm = openCreateDuprMatchForm;
+window.closeCreateDuprMatchForm = closeCreateDuprMatchForm;
+window.submitCreateDuprMatch = submitCreateDuprMatch;
+window.beginEditDuprMatch = beginEditDuprMatch;
+window.cancelEditDuprMatch = cancelEditDuprMatch;
+window.saveEditDuprMatch = saveEditDuprMatch;
+window.deleteDuprMatch = deleteDuprMatch;
+
+// ========================================
 // INITIALIZATION
 // ========================================
 
@@ -3789,6 +4131,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     ensureResultsCarouselBindings();
     requestAnimationFrame(updateResultsCarouselArrows);
     refreshAdminDetailEditors();
+    renderDuprMatchHistory();
     checkTournamentStatus();
     const openRegistrationId = getOpenRegistration();
     if (openRegistrationId) {
@@ -3812,6 +4155,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const tournamentId = panel.id.replace('-registration', '');
                 renderRegistrationList(tournamentId);
             });
+            return loadDuprMatchHistory();
         }).catch(() => {});
     }
     
@@ -3844,4 +4188,5 @@ window.addEventListener('auth:changed', () => {
         const tournamentId = panel.id.replace('-registration', '');
         renderRegistrationList(tournamentId);
     });
+    loadDuprMatchHistory().catch(() => {});
 });

@@ -1,5 +1,6 @@
 import { verifyClerkToken } from '../../_auth.js';
 import { fetchPartnerAccessToken, getDuprEnv, getDuprBase } from '../../dupr/_partner.js';
+import { insertSubmittedMatch, parseDuprMatchMeta } from '../../dupr/_submitted_matches.js';
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -222,7 +223,7 @@ async function getLatestSuccessfulSubmission(env, tournamentId) {
 
 async function logSubmissionAttempt(env, payload) {
     await ensureSubmissionTable(env);
-    await env.DB.prepare(
+    const result = await env.DB.prepare(
         `INSERT INTO dupr_match_submissions (
             tournament_id, submitted_by, dupr_env, endpoint, match_count, status_code, success, response
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -236,6 +237,7 @@ async function logSubmissionAttempt(env, payload) {
         payload.success ? 1 : 0,
         safeJsonString(payload.response)
     ).run();
+    return result.meta?.last_row_id || null;
 }
 
 async function getTournamentContext(env, tournamentId) {
@@ -281,6 +283,25 @@ async function getTeamDuprData(env, tournamentId) {
         }
     });
     return byTeam;
+}
+
+async function getDuprDisplayNameMap(env, tournamentId) {
+    const rows = await env.DB.prepare(
+        `SELECT u.dupr_id, u.display_name
+         FROM teams t
+         JOIN team_members tm ON tm.team_id = t.id
+         JOIN users u ON u.id = tm.user_id
+         WHERE t.tournament_id = ? AND u.dupr_id IS NOT NULL`
+    ).bind(tournamentId).all();
+    const map = new Map();
+    (rows.results || []).forEach(row => {
+        const duprId = String(row.dupr_id || '').trim();
+        if (!duprId) return;
+        if (!map.has(duprId)) {
+            map.set(duprId, String(row.display_name || duprId));
+        }
+    });
+    return map;
 }
 
 async function getRoundRobinCompletedMatches(env, tournamentId) {
@@ -423,10 +444,12 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const teamDuprMap = await getTeamDuprData(env, tournamentId);
+    const duprDisplayNameMap = await getDuprDisplayNameMap(env, tournamentId);
     const getTeamPlayers = (teamId) => (teamDuprMap.get(teamId) || []).filter(Boolean);
 
     const roundRobin = await getRoundRobinCompletedMatches(env, tournamentId);
     const payloadMatches = [];
+    const payloadMeta = [];
     const skippedMatches = [];
 
     roundRobin.forEach(match => {
@@ -440,7 +463,7 @@ export async function onRequestPost({ request, env, params }) {
             });
             return;
         }
-        payloadMatches.push(buildExternalMatchRequest({
+        const requestPayload = buildExternalMatchRequest({
             teamAPlayers,
             teamBPlayers,
             scores: [[match.score1, match.score2]],
@@ -448,7 +471,30 @@ export async function onRequestPost({ request, env, params }) {
             bracketName: `Round Robin - Round ${match.round_number}`,
             identifier: `${tournamentId}:rr:${match.id}`,
             clubId: env.DUPR_CLUB_ID
-        }));
+        });
+        payloadMatches.push(requestPayload);
+        payloadMeta.push({
+            tournamentId,
+            eventName: requestPayload.event,
+            bracketName: requestPayload.bracket,
+            location: requestPayload.location,
+            matchDate: requestPayload.matchDate,
+            identifier: requestPayload.identifier,
+            teamAPlayer1Dupr: requestPayload.teamA.player1,
+            teamAPlayer2Dupr: requestPayload.teamA.player2 || null,
+            teamBPlayer1Dupr: requestPayload.teamB.player1,
+            teamBPlayer2Dupr: requestPayload.teamB.player2 || null,
+            teamAGame1: requestPayload.teamA.game1,
+            teamBGame1: requestPayload.teamB.game1,
+            teamAGame2: requestPayload.teamA.game2 ?? null,
+            teamBGame2: requestPayload.teamB.game2 ?? null,
+            teamAGame3: requestPayload.teamA.game3 ?? null,
+            teamBGame3: requestPayload.teamB.game3 ?? null,
+            teamAGame4: requestPayload.teamA.game4 ?? null,
+            teamBGame4: requestPayload.teamB.game4 ?? null,
+            teamAGame5: requestPayload.teamA.game5 ?? null,
+            teamBGame5: requestPayload.teamB.game5 ?? null
+        });
     });
 
     const seedOrder = tournament.seed_order ? JSON.parse(tournament.seed_order) : [];
@@ -532,7 +578,7 @@ export async function onRequestPost({ request, env, params }) {
                 return;
             }
 
-            payloadMatches.push(buildExternalMatchRequest({
+            const requestPayload = buildExternalMatchRequest({
                 teamAPlayers,
                 teamBPlayers,
                 scores: scoresToSend,
@@ -540,7 +586,30 @@ export async function onRequestPost({ request, env, params }) {
                 bracketName: getPlayoffRoundName(bracketSize, roundNumber, match.matchNumber, totalRounds),
                 identifier: `${tournamentId}:po:r${roundNumber}:m${match.matchNumber}`,
                 clubId: env.DUPR_CLUB_ID
-            }));
+            });
+            payloadMatches.push(requestPayload);
+            payloadMeta.push({
+                tournamentId,
+                eventName: requestPayload.event,
+                bracketName: requestPayload.bracket,
+                location: requestPayload.location,
+                matchDate: requestPayload.matchDate,
+                identifier: requestPayload.identifier,
+                teamAPlayer1Dupr: requestPayload.teamA.player1,
+                teamAPlayer2Dupr: requestPayload.teamA.player2 || null,
+                teamBPlayer1Dupr: requestPayload.teamB.player1,
+                teamBPlayer2Dupr: requestPayload.teamB.player2 || null,
+                teamAGame1: requestPayload.teamA.game1,
+                teamBGame1: requestPayload.teamB.game1,
+                teamAGame2: requestPayload.teamA.game2 ?? null,
+                teamBGame2: requestPayload.teamB.game2 ?? null,
+                teamAGame3: requestPayload.teamA.game3 ?? null,
+                teamBGame3: requestPayload.teamB.game3 ?? null,
+                teamAGame4: requestPayload.teamA.game4 ?? null,
+                teamBGame4: requestPayload.teamB.game4 ?? null,
+                teamAGame5: requestPayload.teamA.game5 ?? null,
+                teamBGame5: requestPayload.teamB.game5 ?? null
+            });
         });
     });
 
@@ -614,7 +683,7 @@ export async function onRequestPost({ request, env, params }) {
         return jsonResponse({ error: 'Unable to reach DUPR match submission endpoint' }, 502);
     }
 
-    await logSubmissionAttempt(env, {
+    const submissionId = await logSubmissionAttempt(env, {
         tournamentId,
         submittedBy: auth.userId,
         duprEnv,
@@ -631,6 +700,48 @@ export async function onRequestPost({ request, env, params }) {
             status: response.status,
             details: responseBody
         }, 502);
+    }
+
+    for (let i = 0; i < payloadMeta.length; i += 1) {
+        const meta = payloadMeta[i];
+        const parsed = parseDuprMatchMeta(responseBody, meta.identifier, i);
+        await insertSubmittedMatch(env, {
+            tournamentId: meta.tournamentId,
+            submissionId,
+            submittedBy: auth.userId,
+            duprEnv,
+            duprMatchId: parsed.matchId,
+            duprMatchCode: parsed.matchCode,
+            identifier: parsed.identifier || meta.identifier,
+            eventName: meta.eventName,
+            bracketName: meta.bracketName,
+            location: meta.location,
+            matchDate: meta.matchDate,
+            format: 'DOUBLES',
+            matchType: 'SIDEOUT',
+            clubId,
+            teamAPlayer1: duprDisplayNameMap.get(meta.teamAPlayer1Dupr) || meta.teamAPlayer1Dupr,
+            teamAPlayer2: meta.teamAPlayer2Dupr ? (duprDisplayNameMap.get(meta.teamAPlayer2Dupr) || meta.teamAPlayer2Dupr) : null,
+            teamBPlayer1: duprDisplayNameMap.get(meta.teamBPlayer1Dupr) || meta.teamBPlayer1Dupr,
+            teamBPlayer2: meta.teamBPlayer2Dupr ? (duprDisplayNameMap.get(meta.teamBPlayer2Dupr) || meta.teamBPlayer2Dupr) : null,
+            teamAPlayer1Dupr: meta.teamAPlayer1Dupr,
+            teamAPlayer2Dupr: meta.teamAPlayer2Dupr,
+            teamBPlayer1Dupr: meta.teamBPlayer1Dupr,
+            teamBPlayer2Dupr: meta.teamBPlayer2Dupr,
+            teamAGame1: meta.teamAGame1,
+            teamBGame1: meta.teamBGame1,
+            teamAGame2: meta.teamAGame2,
+            teamBGame2: meta.teamBGame2,
+            teamAGame3: meta.teamAGame3,
+            teamBGame3: meta.teamBGame3,
+            teamAGame4: meta.teamAGame4,
+            teamBGame4: meta.teamBGame4,
+            teamAGame5: meta.teamAGame5,
+            teamBGame5: meta.teamBGame5,
+            status: 'submitted',
+            lastStatusCode: response.status,
+            lastResponse: safeJsonString(responseBody)
+        });
     }
 
     return jsonResponse({
