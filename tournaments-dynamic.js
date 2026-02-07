@@ -12,7 +12,9 @@ let duprMatchHistoryState = {
     matches: [],
     eligiblePlayers: [],
     createOpen: false,
-    editId: null
+    editId: null,
+    pageSize: 10,
+    pageStart: 0
 };
 
 const LEGACY_RESULTS_DATA = {
@@ -3971,6 +3973,20 @@ function cancelEditDuprMatch() {
     renderDuprMatchHistory();
 }
 
+function previousDuprHistoryPage() {
+    const pageSize = duprMatchHistoryState.pageSize || 10;
+    duprMatchHistoryState.pageStart = Math.max(0, duprMatchHistoryState.pageStart - pageSize);
+    renderDuprMatchHistory();
+}
+
+function nextDuprHistoryPage() {
+    const pageSize = duprMatchHistoryState.pageSize || 10;
+    const total = duprMatchHistoryState.matches.length;
+    const maxStart = Math.max(0, total - pageSize);
+    duprMatchHistoryState.pageStart = Math.min(maxStart, duprMatchHistoryState.pageStart + pageSize);
+    renderDuprMatchHistory();
+}
+
 async function saveEditDuprMatch(matchId) {
     try {
         const id = Number(matchId);
@@ -4026,8 +4042,15 @@ function renderDuprMatchHistory() {
         list.innerHTML = '<p class="text-sm text-gray-600">No submitted matches yet.</p>';
         return;
     }
+    const pageSize = duprMatchHistoryState.pageSize || 10;
+    const total = duprMatchHistoryState.matches.length;
+    const maxStart = Math.max(0, total - pageSize);
+    const pageStart = Math.min(Math.max(duprMatchHistoryState.pageStart || 0, 0), maxStart);
+    duprMatchHistoryState.pageStart = pageStart;
+    const pageEnd = Math.min(pageStart + pageSize, total);
+    const visibleMatches = duprMatchHistoryState.matches.slice(pageStart, pageEnd);
 
-    const rowsHtml = duprMatchHistoryState.matches.map(match => {
+    const rowsHtml = visibleMatches.map(match => {
         const isEditing = duprMatchHistoryState.editId === match.id;
         const statusClass = match.status === 'deleted'
             ? 'text-red-600'
@@ -4081,7 +4104,32 @@ function renderDuprMatchHistory() {
         `;
     }).join('');
 
-    list.innerHTML = rowsHtml;
+    const rangeLabel = `${pageStart + 1}-${pageEnd} of ${total}`;
+    const disablePrevious = pageStart <= 0;
+    const disableNext = pageEnd >= total;
+    const pagerHtml = `
+        <div class="mt-3 flex items-center justify-between gap-2">
+            <button
+                type="button"
+                onclick="previousDuprHistoryPage()"
+                class="px-3 py-2 rounded-lg border border-gray-300 text-ocean-blue ${disablePrevious ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'}"
+                ${disablePrevious ? 'disabled' : ''}
+            >
+                Up 10
+            </button>
+            <span class="text-xs text-gray-600">${rangeLabel}</span>
+            <button
+                type="button"
+                onclick="nextDuprHistoryPage()"
+                class="px-3 py-2 rounded-lg border border-gray-300 text-ocean-blue ${disableNext ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'}"
+                ${disableNext ? 'disabled' : ''}
+            >
+                Down 10
+            </button>
+        </div>
+    `;
+
+    list.innerHTML = rowsHtml + pagerHtml;
 }
 
 async function loadDuprMatchHistory() {
@@ -4096,6 +4144,8 @@ async function loadDuprMatchHistory() {
         const payload = await duprHistoryRequest('GET', '/api/dupr/submitted-matches');
         duprMatchHistoryState.matches = Array.isArray(payload.matches) ? payload.matches : [];
         duprMatchHistoryState.eligiblePlayers = Array.isArray(payload.eligiblePlayers) ? payload.eligiblePlayers : [];
+        const maxStart = Math.max(0, duprMatchHistoryState.matches.length - (duprMatchHistoryState.pageSize || 10));
+        duprMatchHistoryState.pageStart = Math.min(Math.max(duprMatchHistoryState.pageStart || 0, 0), maxStart);
         renderDuprMatchHistory();
     } catch (error) {
         section.classList.remove('hidden');
@@ -4113,6 +4163,8 @@ window.beginEditDuprMatch = beginEditDuprMatch;
 window.cancelEditDuprMatch = cancelEditDuprMatch;
 window.saveEditDuprMatch = saveEditDuprMatch;
 window.deleteDuprMatch = deleteDuprMatch;
+window.previousDuprHistoryPage = previousDuprHistoryPage;
+window.nextDuprHistoryPage = nextDuprHistoryPage;
 
 // ========================================
 // INITIALIZATION
