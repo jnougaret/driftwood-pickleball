@@ -14,7 +14,9 @@ let duprMatchHistoryState = {
     createOpen: false,
     editId: null,
     pageSize: 10,
-    pageStart: 0
+    pageStart: 0,
+    canWrite: false,
+    permissionsLoaded: false
 };
 
 const LEGACY_RESULTS_DATA = {
@@ -3789,6 +3791,42 @@ function canManageDuprMatches() {
     return Boolean(window.authProfile && window.authProfile.isAdmin);
 }
 
+async function refreshDuprMatchHistoryPermissions() {
+    duprMatchHistoryState.canWrite = false;
+    duprMatchHistoryState.permissionsLoaded = false;
+
+    if (!canManageDuprMatches()) {
+        return;
+    }
+
+    const auth = window.authUtils;
+    if (!auth || !auth.getAuthToken) {
+        return;
+    }
+
+    const token = await auth.getAuthToken();
+    if (!token) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/dupr/club-membership-check', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            return;
+        }
+        const payload = await response.json();
+        duprMatchHistoryState.canWrite = Boolean(payload?.evaluation?.allowedToSubmit);
+        duprMatchHistoryState.permissionsLoaded = true;
+    } catch (error) {
+        // Keep read-only mode if membership check is unavailable.
+    }
+}
+
 function pairText(player1, player2) {
     return player2 ? `${player1} / ${player2}` : player1;
 }
@@ -3861,6 +3899,7 @@ function buildCreatePlayerOptions() {
 }
 
 function openCreateDuprMatchForm() {
+    if (!duprMatchHistoryState.canWrite) return;
     duprMatchHistoryState.createOpen = true;
     const formWrap = document.getElementById('dupr-match-form-wrap');
     if (!formWrap) return;
@@ -3964,6 +4003,7 @@ async function submitCreateDuprMatch() {
 }
 
 function beginEditDuprMatch(matchId) {
+    if (!duprMatchHistoryState.canWrite) return;
     duprMatchHistoryState.editId = Number(matchId);
     renderDuprMatchHistory();
 }
@@ -3988,6 +4028,7 @@ function nextDuprHistoryPage() {
 }
 
 async function saveEditDuprMatch(matchId) {
+    if (!duprMatchHistoryState.canWrite) return;
     try {
         const id = Number(matchId);
         const payload = {
@@ -4002,6 +4043,7 @@ async function saveEditDuprMatch(matchId) {
 }
 
 async function deleteDuprMatch(matchId) {
+    if (!duprMatchHistoryState.canWrite) return;
     const id = Number(matchId);
     const confirmed = window.confirm('Delete this match from DUPR?');
     if (!confirmed) return;
@@ -4033,6 +4075,15 @@ function renderDuprMatchHistory() {
         createButton.dataset.bound = 'true';
         createButton.addEventListener('click', openCreateDuprMatchForm);
     }
+    if (createButton) {
+        createButton.classList.toggle('hidden', !duprMatchHistoryState.canWrite);
+    }
+    if (!duprMatchHistoryState.canWrite) {
+        closeCreateDuprMatchForm();
+        if (duprMatchHistoryState.editId !== null) {
+            duprMatchHistoryState.editId = null;
+        }
+    }
 
     if (!duprMatchHistoryState.matches.length) {
         list.innerHTML = '<p class="text-sm text-gray-600">No submitted matches yet.</p>';
@@ -4052,8 +4103,8 @@ function renderDuprMatchHistory() {
             ? 'text-red-600'
             : (match.status === 'updated' ? 'text-ocean-teal' : 'text-ocean-blue');
         const score = matchScoreSummary(match);
-        const canEdit = match.status !== 'deleted';
-        const canDelete = match.status !== 'deleted';
+        const canEdit = duprMatchHistoryState.canWrite && match.status !== 'deleted';
+        const canDelete = duprMatchHistoryState.canWrite && match.status !== 'deleted';
 
         if (!isEditing) {
             return `
@@ -4135,6 +4186,7 @@ async function loadDuprMatchHistory() {
     }
 
     try {
+        await refreshDuprMatchHistoryPermissions();
         const payload = await duprHistoryRequest('GET', '/api/dupr/submitted-matches');
         duprMatchHistoryState.matches = Array.isArray(payload.matches) ? payload.matches : [];
         duprMatchHistoryState.eligiblePlayers = Array.isArray(payload.eligiblePlayers) ? payload.eligiblePlayers : [];
