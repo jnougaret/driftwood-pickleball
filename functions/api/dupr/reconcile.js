@@ -86,7 +86,7 @@ export async function onRequestPost({ request, env }) {
     const startDate = toEpochSeconds(body.startDate, defaultStart);
     const endDate = toEpochSeconds(body.endDate, nowEpoch);
     const offset = Number.isInteger(body.offset) ? Math.max(0, body.offset) : 0;
-    const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(250, body.limit)) : 100;
+    const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(100, body.limit)) : 50;
 
     const endpoint = getClubMatchSearchUrl(env, access.duprEnv);
     const searchPayload = {
@@ -187,7 +187,6 @@ export async function onRequestPost({ request, env }) {
             eventName: match.event_name,
             matchDate: match.match_date,
             status: match.status
-        })),
-        raw: remotePayload
+        }))
     });
 }

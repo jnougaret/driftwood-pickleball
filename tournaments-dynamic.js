@@ -3898,9 +3898,22 @@ async function duprHistoryRequest(method, url, body = null) {
         },
         body: body ? JSON.stringify(body) : undefined
     });
-    const payload = await response.json().catch(() => ({}));
+    const text = await response.text();
+    let payload = {};
+    try {
+        payload = text ? JSON.parse(text) : {};
+    } catch (error) {
+        payload = { raw: text };
+    }
     if (!response.ok) {
-        throw new Error(payload.error || `Request failed (${response.status})`);
+        const details = payload && payload.details
+            ? `: ${typeof payload.details === 'string' ? payload.details : JSON.stringify(payload.details)}`
+            : '';
+        const message = payload.error
+            || payload.message
+            || (payload.raw ? String(payload.raw).slice(0, 180) : null)
+            || `Request failed (${response.status})`;
+        throw new Error(`${message}${details}`);
     }
     return payload;
 }
