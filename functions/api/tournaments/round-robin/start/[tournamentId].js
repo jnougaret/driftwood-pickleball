@@ -98,10 +98,18 @@ export async function onRequestPost({ request, env, params }) {
     }
 
     const settings = await env.DB.prepare(
-        'SELECT rounds, dupr_required FROM tournament_settings WHERE tournament_id = ?'
+        `SELECT
+            rounds,
+            dupr_required,
+            requires_dupr_premium,
+            requires_dupr_verified
+         FROM tournament_settings
+         WHERE tournament_id = ?`
     ).bind(tournamentId).first();
     const rounds = settings?.rounds ?? 6;
-    const duprRequired = settings?.dupr_required === 1;
+    const requiresDuprVerified = settings?.requires_dupr_verified === 1;
+    const requiresDuprPremium = settings?.requires_dupr_premium === 1 || requiresDuprVerified;
+    const duprRequired = !settings || settings?.dupr_required === 1 || requiresDuprPremium;
 
     await ensureTournamentRow(env, tournamentId);
 
@@ -121,7 +129,9 @@ export async function onRequestPost({ request, env, params }) {
     if (duprRequired) {
         const duprCheck = await env.DB.prepare(
             `SELECT COUNT(*) AS total_players,
-                    SUM(CASE WHEN u.dupr_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_players
+                    SUM(CASE WHEN u.dupr_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_players,
+                    SUM(CASE WHEN u.dupr_premium_l1 = 1 THEN 1 ELSE 0 END) AS premium_players,
+                    SUM(CASE WHEN u.dupr_verified_l1 = 1 THEN 1 ELSE 0 END) AS verified_players
              FROM team_members tm
              JOIN teams t ON t.id = tm.team_id
              JOIN users u ON u.id = tm.user_id
@@ -129,8 +139,16 @@ export async function onRequestPost({ request, env, params }) {
         ).bind(tournamentId).first();
         const totalPlayers = Number(duprCheck?.total_players || 0);
         const linkedPlayers = Number(duprCheck?.linked_players || 0);
+        const premiumPlayers = Number(duprCheck?.premium_players || 0);
+        const verifiedPlayers = Number(duprCheck?.verified_players || 0);
         if (totalPlayers > 0 && linkedPlayers < totalPlayers) {
             return jsonResponse({ error: 'All players must link their DUPR account' }, 400);
+        }
+        if (requiresDuprPremium && totalPlayers > 0 && premiumPlayers < totalPlayers) {
+            return jsonResponse({ error: 'All players must have DUPR+ entitlement' }, 400);
+        }
+        if (requiresDuprVerified && totalPlayers > 0 && verifiedPlayers < totalPlayers) {
+            return jsonResponse({ error: 'All players must have DUPR Verified entitlement' }, 400);
         }
     }
 

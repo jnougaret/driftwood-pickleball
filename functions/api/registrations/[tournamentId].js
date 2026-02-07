@@ -53,6 +53,8 @@ async function listTeams(env, tournamentId) {
                 u.id AS user_id,
                 u.display_name AS display_name,
                 u.dupr_id AS dupr_id,
+                u.dupr_premium_l1 AS dupr_premium_l1,
+                u.dupr_verified_l1 AS dupr_verified_l1,
                 u.doubles_rating AS doubles_rating,
                 u.singles_rating AS singles_rating
          FROM teams t
@@ -72,6 +74,8 @@ async function listTeams(env, tournamentId) {
                     id: row.user_id,
                     name: row.display_name || 'Player',
                     duprId: row.dupr_id,
+                    duprPremium: row.dupr_premium_l1 === 1,
+                    duprVerified: row.dupr_verified_l1 === 1,
                     doublesRating: row.doubles_rating,
                     singlesRating: row.singles_rating
                 });
@@ -88,11 +92,20 @@ async function getMaxTeams(env, tournamentId) {
     return settings?.max_teams ?? 12;
 }
 
-async function isDuprRequired(env, tournamentId) {
+async function getDuprRequirement(env, tournamentId) {
     const settings = await env.DB.prepare(
-        'SELECT dupr_required FROM tournament_settings WHERE tournament_id = ?'
+        `SELECT
+            dupr_required,
+            requires_dupr_premium,
+            requires_dupr_verified
+         FROM tournament_settings
+         WHERE tournament_id = ?`
     ).bind(tournamentId).first();
-    return settings?.dupr_required === 1;
+    if (!settings) return 'dupr';
+    if (settings.requires_dupr_verified === 1) return 'verified';
+    if (settings.requires_dupr_premium === 1) return 'premium';
+    if (settings.dupr_required === 1) return 'dupr';
+    return 'off';
 }
 
 async function getTournamentStatus(env, tournamentId) {
@@ -104,8 +117,24 @@ async function getTournamentStatus(env, tournamentId) {
 
 async function getUserProfile(env, userId) {
     return await env.DB.prepare(
-        'SELECT id, dupr_id FROM users WHERE id = ?'
+        `SELECT
+            id,
+            dupr_id,
+            dupr_premium_l1,
+            dupr_verified_l1
+         FROM users
+         WHERE id = ?`
     ).bind(userId).first();
+}
+
+function requirementError(requirement) {
+    if (requirement === 'verified') {
+        return 'DUPR Verified status is required for this event. Please complete DUPR premium login.';
+    }
+    if (requirement === 'premium') {
+        return 'DUPR+ subscription is required for this event. Please complete DUPR premium login.';
+    }
+    return 'DUPR account must be linked for DUPR-reported events';
 }
 
 async function getUserById(env, userId) {
@@ -182,6 +211,11 @@ export async function onRequestPost({ request, env, params }) {
             const requester = await getUserById(env, userId);
             if (!requester || !requester.is_admin) {
                 return jsonResponse({ error: 'Forbidden' }, 403);
+            }
+
+            const duprRequirement = await getDuprRequirement(env, tournamentId);
+            if (duprRequirement !== 'off') {
+                return jsonResponse({ error: 'Guest players cannot be added to DUPR-gated events' }, 400);
             }
 
             const displayName = String(body.displayName || '').trim();
@@ -268,13 +302,19 @@ export async function onRequestPost({ request, env, params }) {
             return jsonResponse({ error: 'Registration is full' }, 400);
         }
 
-        const duprRequired = await isDuprRequired(env, tournamentId);
+        const duprRequirement = await getDuprRequirement(env, tournamentId);
         const profile = await getUserProfile(env, userId);
         if (!profile) {
             return jsonResponse({ error: 'Profile required before registering' }, 400);
         }
-        if (duprRequired && !profile.dupr_id) {
-            return jsonResponse({ error: 'DUPR account must be linked for DUPR-reported events' }, 400);
+        if (duprRequirement !== 'off' && !profile.dupr_id) {
+            return jsonResponse({ error: requirementError('dupr'), requirement: duprRequirement }, 400);
+        }
+        if ((duprRequirement === 'premium' || duprRequirement === 'verified') && profile.dupr_premium_l1 !== 1) {
+            return jsonResponse({ error: requirementError('premium'), requirement: duprRequirement }, 400);
+        }
+        if (duprRequirement === 'verified' && profile.dupr_verified_l1 !== 1) {
+            return jsonResponse({ error: requirementError('verified'), requirement: duprRequirement }, 400);
         }
 
         const existing = await findUserTeam(env, tournamentId, userId);

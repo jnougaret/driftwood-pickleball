@@ -36,10 +36,14 @@ export async function onRequestGet({ env }) {
         ? ['https://dashboard.dupr.com']
         : ['https://uat.dupr.gg'];
 
+    const premiumLinkUrl = (env.DUPR_PREMIUM_LOGIN_URL || '').trim() || `${linkBase}/${encoded}`;
+    const verifiedLinkUrl = (env.DUPR_VERIFIED_LOGIN_URL || '').trim() || premiumLinkUrl;
+
     return jsonResponse({
         environment: duprEnv,
         linkUrl: `${linkBase}/${encoded}`,
+        premiumLinkUrl,
+        verifiedLinkUrl,
         allowedOrigins
     });
 }
-

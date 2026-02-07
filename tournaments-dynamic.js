@@ -473,17 +473,17 @@ function createTournamentCard(tournament, type) {
                             </div>
                             <div>
                                     <div class="flex items-center justify-between mb-1">
-                                        <span class="text-sm font-medium text-gray-700">DUPR reported</span>
-                                        <span class="text-xs text-gray-500" id="${tournament.id}-dupr-required-value">On</span>
+                                        <span class="text-sm font-medium text-gray-700">DUPR requirement</span>
+                                        <span class="text-xs text-gray-500" id="${tournament.id}-dupr-required-value">DUPR</span>
                                     </div>
                                     <button
                                         type="button"
                                         id="${tournament.id}-dupr-required"
-                                        data-enabled="true"
-                                        onclick="toggleDuprRequired('${tournament.id}')"
+                                        data-requirement="dupr"
+                                        onclick="toggleDuprRequirement('${tournament.id}')"
                                         class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
                                     >
-                                        DUPR reported (On)
+                                        DUPR required (DUPR)
                                     </button>
                             </div>
                         </div>
@@ -1159,6 +1159,12 @@ async function fetchTournamentSettings(tournamentId) {
         throw new Error('Failed to load settings');
     }
     const data = await response.json();
+    const duprRequirement = normalizeDuprRequirement(
+        data.duprRequirement,
+        data.requiresDuprVerified,
+        data.requiresDuprPremium,
+        data.duprRequired
+    );
     if (data) {
         localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
             maxTeams: data.maxTeams,
@@ -1167,32 +1173,62 @@ async function fetchTournamentSettings(tournamentId) {
             playoffTeams: data.playoffTeams,
             playoffBestOfThree: data.playoffBestOfThree,
             playoffBestOfThreeBronze: data.playoffBestOfThreeBronze,
-            duprRequired: data.duprRequired
+            duprRequired: duprRequirement !== 'off',
+            duprRequirement,
+            requiresDuprPremium: duprRequirement === 'premium' || duprRequirement === 'verified',
+            requiresDuprVerified: duprRequirement === 'verified'
         }));
-        if (typeof data.duprRequired === 'boolean') {
-            updateDuprBadge(tournamentId, data.duprRequired);
-        }
+        updateDuprBadge(tournamentId, duprRequirement !== 'off');
     }
-    return data;
+    return {
+        ...data,
+        duprRequirement,
+        duprRequired: duprRequirement !== 'off',
+        requiresDuprPremium: duprRequirement === 'premium' || duprRequirement === 'verified',
+        requiresDuprVerified: duprRequirement === 'verified'
+    };
 }
 
-async function getDuprRequiredSetting(tournamentId) {
+function normalizeDuprRequirement(duprRequirement, requiresVerified, requiresPremium, duprRequired) {
+    const normalized = String(duprRequirement || '').toLowerCase();
+    if (normalized === 'verified' || requiresVerified === true) return 'verified';
+    if (normalized === 'premium' || requiresPremium === true) return 'premium';
+    if (normalized === 'dupr' || duprRequired === true) return 'dupr';
+    return 'off';
+}
+
+function duprRequirementLabel(requirement) {
+    if (requirement === 'verified') return 'DUPR Verified';
+    if (requirement === 'premium') return 'DUPR Premium';
+    if (requirement === 'dupr') return 'DUPR';
+    return 'Off';
+}
+
+async function getDuprRequirementSetting(tournamentId) {
     const cached = localStorage.getItem(`tournament-settings-${tournamentId}`);
     if (cached) {
         try {
             const parsed = JSON.parse(cached);
-            if (typeof parsed.duprRequired === 'boolean') {
-                return parsed.duprRequired;
-            }
+            return normalizeDuprRequirement(
+                parsed.duprRequirement,
+                parsed.requiresDuprVerified,
+                parsed.requiresDuprPremium,
+                parsed.duprRequired
+            );
         } catch (error) {
             // ignore cache parse errors
         }
     }
     try {
         const settings = await fetchTournamentSettings(tournamentId);
-        return settings?.duprRequired === true;
+        return normalizeDuprRequirement(
+            settings?.duprRequirement,
+            settings?.requiresDuprVerified,
+            settings?.requiresDuprPremium,
+            settings?.duprRequired
+        );
     } catch (error) {
-        return false;
+        return 'off';
     }
 }
 
@@ -1260,33 +1296,157 @@ async function requireAuth() {
     return null;
 }
 
-async function ensureDuprLinked() {
+let duprRequirementModalState = {
+    config: null,
+    allowedOrigins: new Set(),
+    activeResolver: null,
+    activeRequirement: null,
+    messageBound: false
+};
+
+async function loadDuprConfigForTournament() {
+    if (duprRequirementModalState.config && duprRequirementModalState.config.linkUrl) {
+        return duprRequirementModalState.config;
+    }
+    const response = await fetch('/api/dupr/config');
+    if (!response.ok) {
+        throw new Error('Failed to load DUPR configuration');
+    }
+    const config = await response.json();
+    duprRequirementModalState.config = config;
+    duprRequirementModalState.allowedOrigins = new Set(config.allowedOrigins || []);
+    return config;
+}
+
+async function fetchProfileForRegistration() {
+    const token = await window.authUtils.getAuthToken();
+    const response = await fetch('/api/auth/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.status === 404) return { missingProfile: true };
+    if (!response.ok) throw new Error('Unable to verify profile status');
+    const profile = await response.json();
+    return { profile };
+}
+
+function profileMeetsDuprRequirement(profile, requirement) {
+    if (requirement === 'off') return true;
+    if (!profile || !profile.duprId) return false;
+    if (requirement === 'dupr') return true;
+    if (requirement === 'premium') return profile.duprPremium === true;
+    if (requirement === 'verified') return profile.duprVerified === true;
+    return false;
+}
+
+function ensureDuprRequirementModalElements() {
+    if (document.getElementById('dupr-requirement-modal')) return;
+    const wrapper = document.createElement('div');
+    wrapper.id = 'dupr-requirement-modal';
+    wrapper.className = 'hidden fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4';
+    wrapper.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-ocean-blue">Complete DUPR Requirement</h3>
+                <button type="button" id="dupr-requirement-close" class="text-sm text-gray-500 hover:text-gray-700">Close</button>
+            </div>
+            <iframe id="dupr-requirement-iframe" title="DUPR requirement login" class="w-full flex-1 border-0" referrerpolicy="no-referrer"></iframe>
+        </div>
+    `;
+    document.body.appendChild(wrapper);
+    const closeButton = document.getElementById('dupr-requirement-close');
+    if (closeButton) {
+        closeButton.addEventListener('click', () => closeDuprRequirementModal(false));
+    }
+}
+
+function closeDuprRequirementModal(success) {
+    const modal = document.getElementById('dupr-requirement-modal');
+    const iframe = document.getElementById('dupr-requirement-iframe');
+    if (modal) modal.classList.add('hidden');
+    if (iframe) iframe.src = '';
+    if (duprRequirementModalState.activeResolver) {
+        const resolve = duprRequirementModalState.activeResolver;
+        duprRequirementModalState.activeResolver = null;
+        resolve(Boolean(success));
+    }
+}
+
+function bindDuprRequirementMessageHandler() {
+    if (duprRequirementModalState.messageBound) return;
+    duprRequirementModalState.messageBound = true;
+    window.addEventListener('message', async (event) => {
+        if (!duprRequirementModalState.activeResolver) return;
+        if (!duprRequirementModalState.allowedOrigins.has(event.origin)) return;
+        const payload = event.data && typeof event.data === 'object' ? event.data : null;
+        const userToken = payload && typeof payload.userToken === 'string' ? payload.userToken.trim() : '';
+        if (!userToken) return;
+        try {
+            const token = await window.authUtils.getAuthToken();
+            const response = await fetch('/api/dupr/entitlements-check', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userToken })
+            });
+            if (!response.ok) {
+                alert('Unable to verify DUPR entitlements. Please try again.');
+                return;
+            }
+            const refreshed = await fetchProfileForRegistration();
+            if (refreshed.profile && profileMeetsDuprRequirement(refreshed.profile, duprRequirementModalState.activeRequirement)) {
+                closeDuprRequirementModal(true);
+            } else {
+                alert('DUPR entitlement still missing for this event requirement.');
+            }
+        } catch (error) {
+            console.error('DUPR entitlement refresh failed:', error);
+            alert('Unable to verify DUPR entitlements.');
+        }
+    }, false);
+}
+
+async function openDuprRequirementModal(requirement) {
+    const config = await loadDuprConfigForTournament();
+    ensureDuprRequirementModalElements();
+    bindDuprRequirementMessageHandler();
+    const modal = document.getElementById('dupr-requirement-modal');
+    const iframe = document.getElementById('dupr-requirement-iframe');
+    if (!modal || !iframe) return false;
+    const sourceUrl = requirement === 'verified'
+        ? (config.verifiedLinkUrl || config.premiumLinkUrl || config.linkUrl)
+        : (config.premiumLinkUrl || config.linkUrl);
+    duprRequirementModalState.activeRequirement = requirement;
+    modal.classList.remove('hidden');
+    iframe.src = sourceUrl;
+    return await new Promise(resolve => {
+        duprRequirementModalState.activeResolver = resolve;
+    });
+}
+
+async function ensureDuprEligibility(requirement) {
+    if (requirement === 'off') return { ok: true };
     try {
-        const token = await window.authUtils.getAuthToken();
-        const response = await fetch('/api/auth/profile', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.status === 404) {
+        const current = await fetchProfileForRegistration();
+        if (current.missingProfile || !current.profile?.duprId) {
             redirectToProfileForLink();
-            return false;
+            return { ok: false };
         }
-
-        if (!response.ok) {
-            alert('Unable to verify profile status.');
-            return false;
+        if (profileMeetsDuprRequirement(current.profile, requirement)) {
+            return { ok: true };
         }
-
-        const profile = await response.json();
-        if (!profile.duprId) {
-            redirectToProfileForLink();
-            return false;
+        if (requirement === 'premium' || requirement === 'verified') {
+            const completed = await openDuprRequirementModal(requirement);
+            if (completed) return { ok: true };
+            return { ok: false };
         }
-        return true;
+        redirectToProfileForLink();
+        return { ok: false };
     } catch (error) {
         console.error('Profile check failed:', error);
         alert('Unable to verify profile status.');
-        return false;
+        return { ok: false };
     }
 }
 
@@ -1333,17 +1493,17 @@ function adminSettingsMarkup(tournamentId) {
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-sm font-medium text-gray-700">DUPR reported</span>
-                        <span class="text-xs text-gray-500" id="${tournamentId}-dupr-required-value">On</span>
+                        <span class="text-sm font-medium text-gray-700">DUPR requirement</span>
+                        <span class="text-xs text-gray-500" id="${tournamentId}-dupr-required-value">DUPR</span>
                     </div>
                     <button
                         type="button"
                         id="${tournamentId}-dupr-required"
-                        data-enabled="true"
-                        onclick="toggleDuprRequired('${tournamentId}')"
+                        data-requirement="dupr"
+                        onclick="toggleDuprRequirement('${tournamentId}')"
                         class="w-full text-center font-semibold py-2 rounded-lg border border-ocean-blue bg-white text-ocean-blue hover:bg-ocean-blue hover:text-white transition"
                     >
-                        DUPR reported (On)
+                        DUPR required (DUPR)
                     </button>
                 </div>
             </div>
@@ -1492,7 +1652,7 @@ async function loadAdminSettings(tournamentId) {
         console.error('Load settings error:', error);
         // Keep admin tools visible even if settings fetch fails.
         settingsContainer.classList.remove('hidden');
-        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6, duprRequired: true }, 6);
+        applySettingsToInputs(tournamentId, { maxTeams: 12, rounds: 6, duprRequirement: 'dupr' }, 6);
     }
 }
 
@@ -1530,10 +1690,16 @@ function applySettingsToInputs(tournamentId, settings, minTeams) {
     }
 
     if (duprButton && duprValue) {
-        const enabled = settings.duprRequired === true;
-        duprButton.dataset.enabled = enabled ? 'true' : 'false';
-        duprValue.textContent = enabled ? 'On' : 'Off';
-        duprButton.textContent = `DUPR reported (${enabled ? 'On' : 'Off'})`;
+        const requirement = normalizeDuprRequirement(
+            settings.duprRequirement,
+            settings.requiresDuprVerified,
+            settings.requiresDuprPremium,
+            settings.duprRequired
+        );
+        const enabled = requirement !== 'off';
+        duprButton.dataset.requirement = requirement;
+        duprValue.textContent = duprRequirementLabel(requirement);
+        duprButton.textContent = `DUPR required (${duprRequirementLabel(requirement)})`;
         duprButton.classList.toggle('bg-ocean-blue', enabled);
         duprButton.classList.toggle('text-white', enabled);
         duprButton.classList.toggle('bg-white', !enabled);
@@ -1583,20 +1749,22 @@ async function updateRounds(tournamentId, value) {
     await persistSettings(tournamentId);
 }
 
-async function toggleDuprRequired(tournamentId) {
+async function toggleDuprRequirement(tournamentId) {
     const button = document.getElementById(`${tournamentId}-dupr-required`);
     const valueLabel = document.getElementById(`${tournamentId}-dupr-required-value`);
     if (!button || !valueLabel) return;
-    const isOn = button.dataset.enabled === 'true';
-    const next = !isOn;
-    button.dataset.enabled = next ? 'true' : 'false';
-    valueLabel.textContent = next ? 'On' : 'Off';
-    button.textContent = `DUPR reported (${next ? 'On' : 'Off'})`;
-    button.classList.toggle('bg-ocean-blue', next);
-    button.classList.toggle('text-white', next);
-    button.classList.toggle('bg-white', !next);
-    button.classList.toggle('text-ocean-blue', !next);
-    updateDuprBadge(tournamentId, next);
+    const sequence = ['off', 'dupr', 'premium', 'verified'];
+    const current = sequence.includes(button.dataset.requirement) ? button.dataset.requirement : 'dupr';
+    const next = sequence[(sequence.indexOf(current) + 1) % sequence.length];
+    const enabled = next !== 'off';
+    button.dataset.requirement = next;
+    valueLabel.textContent = duprRequirementLabel(next);
+    button.textContent = `DUPR required (${duprRequirementLabel(next)})`;
+    button.classList.toggle('bg-ocean-blue', enabled);
+    button.classList.toggle('text-white', enabled);
+    button.classList.toggle('bg-white', !enabled);
+    button.classList.toggle('text-ocean-blue', !enabled);
+    updateDuprBadge(tournamentId, enabled);
     await persistSettings(tournamentId);
 }
 
@@ -1659,16 +1827,19 @@ async function flushSettingsSaves() {
         const duprButton = document.getElementById(`${tournamentId}-dupr-required`);
         if (!maxTeamsInput || !roundsInput) return;
         try {
-            const duprRequired = duprButton ? duprButton.dataset.enabled === 'true' : false;
+            const duprRequirement = duprButton ? (duprButton.dataset.requirement || 'off') : 'off';
             await saveTournamentSettings(tournamentId, {
                 maxTeams: Number(maxTeamsInput.value),
                 rounds: Number(roundsInput.value),
-                duprRequired
+                duprRequirement
             });
             localStorage.setItem(`tournament-settings-${tournamentId}`, JSON.stringify({
                 maxTeams: Number(maxTeamsInput.value),
                 rounds: Number(roundsInput.value),
-                duprRequired
+                duprRequirement,
+                duprRequired: duprRequirement !== 'off',
+                requiresDuprPremium: duprRequirement === 'premium' || duprRequirement === 'verified',
+                requiresDuprVerified: duprRequirement === 'verified'
             }));
         } catch (error) {
             console.error('Save settings error:', error);
@@ -2434,7 +2605,7 @@ async function renderPlayoffView(
 ) {
     const roundsContainer = document.getElementById(`${tournamentId}-rounds-container`);
     if (!roundsContainer) return;
-    const duprRequired = await getDuprRequiredSetting(tournamentId);
+    const duprRequirement = await getDuprRequirementSetting(tournamentId);
 
     const seedOrder = playoff.seedOrder || [];
     const scores = playoff.scores || [];
@@ -2637,7 +2808,7 @@ async function renderPlayoffView(
 
         const canArchiveResults = Boolean(playoff && playoff.isComplete);
         const alreadySubmittedToDupr = Boolean(playoff && playoff.duprSubmission && playoff.duprSubmission.success);
-        const submitToDuprButton = isFinal && isAdmin && duprRequired
+        const submitToDuprButton = isFinal && isAdmin && duprRequirement !== 'off'
             ? `
                 <button
                     class="mt-4 w-full border border-sand-600 bg-sand-500 text-ocean-blue px-4 py-2 rounded-lg hover:bg-sand-600 transition font-semibold ${canArchiveResults && !alreadySubmittedToDupr ? '' : 'opacity-60 cursor-not-allowed'}"
@@ -2865,7 +3036,7 @@ async function renderRegistrationList(tournamentId) {
     let teams = [];
     let maxTeams = 12;
     let status = 'registration';
-    let duprRequired = false;
+    let duprRequirement = 'off';
     try {
         teams = await fetchRegistrations(tournamentId);
         const settings = await fetchTournamentSettings(tournamentId);
@@ -2875,8 +3046,13 @@ async function renderRegistrationList(tournamentId) {
         if (settings && settings.status) {
             status = settings.status;
         }
-        if (settings && settings.duprRequired === true) {
-            duprRequired = true;
+        if (settings) {
+            duprRequirement = normalizeDuprRequirement(
+                settings.duprRequirement,
+                settings.requiresDuprVerified,
+                settings.requiresDuprPremium,
+                settings.duprRequired
+            );
         }
     } catch (error) {
         list.innerHTML = '<p class="text-sm text-red-500">Unable to load registrations.</p>';
@@ -3058,8 +3234,13 @@ async function renderRegistrationList(tournamentId) {
         loadAdminSettings(tournamentId);
         const hasMinTeams = teams.length >= 4;
         const allFull = teams.every(team => (team.players || []).length >= 2);
-        const allDuprLinked = !duprRequired
-            || teams.every(team => (team.players || []).every(player => Boolean(player.duprId)));
+        const allDuprLinked = teams.every(team => (team.players || []).every(player => {
+            if (duprRequirement === 'off') return true;
+            if (!player.duprId) return false;
+            if (duprRequirement === 'premium' && !player.duprPremium) return false;
+            if (duprRequirement === 'verified' && !player.duprVerified) return false;
+            return true;
+        }));
         const existingButton = document.getElementById(`${tournamentId}-start-round-robin`);
         if (!existingButton) {
             const button = document.createElement('button');
@@ -3114,9 +3295,13 @@ async function refreshTournamentButtons() {
             if (cached) {
                 try {
                     const parsed = JSON.parse(cached);
-                    if (typeof parsed.duprRequired === 'boolean') {
-                        updateDuprBadge(tournament.id, parsed.duprRequired);
-                    }
+                    const requirement = normalizeDuprRequirement(
+                        parsed.duprRequirement,
+                        parsed.requiresDuprVerified,
+                        parsed.requiresDuprPremium,
+                        parsed.duprRequired
+                    );
+                    updateDuprBadge(tournament.id, requirement !== 'off');
                 } catch (parseError) {
                     // ignore
                 }
@@ -3129,11 +3314,9 @@ async function registerTeam(tournamentId) {
     setOpenRegistration(tournamentId);
     const user = await requireAuth();
     if (!user) return;
-    const duprRequired = await getDuprRequiredSetting(tournamentId);
-    if (duprRequired) {
-        const linked = await ensureDuprLinked();
-        if (!linked) return;
-    }
+    const duprRequirement = await getDuprRequirementSetting(tournamentId);
+    const duprReady = await ensureDuprEligibility(duprRequirement);
+    if (!duprReady.ok) return;
 
     try {
         await submitRegistration({ action: 'create', tournamentId });
@@ -3147,11 +3330,9 @@ async function joinTeam(tournamentId, teamIndex) {
     setOpenRegistration(tournamentId);
     const user = await requireAuth();
     if (!user) return;
-    const duprRequired = await getDuprRequiredSetting(tournamentId);
-    if (duprRequired) {
-        const linked = await ensureDuprLinked();
-        if (!linked) return;
-    }
+    const duprRequirement = await getDuprRequirementSetting(tournamentId);
+    const duprReady = await ensureDuprEligibility(duprRequirement);
+    if (!duprReady.ok) return;
 
     const tournament = findUpcomingTournament(tournamentId);
     if (!tournament || !isDoublesTournament(tournament)) {
@@ -3200,7 +3381,7 @@ async function addGuestPlayerQuick(tournamentId, teamId = null) {
     }
 }
 
-async function submitRegistration({ action, tournamentId, teamId, extra = {} }) {
+async function submitRegistration({ action, tournamentId, teamId, extra = {}, retriedAfterEntitlement = false }) {
     const token = await window.authUtils.getAuthToken();
     const response = await fetch(`/api/registrations/${tournamentId}`, {
         method: 'POST',
@@ -3213,6 +3394,18 @@ async function submitRegistration({ action, tournamentId, teamId, extra = {} }) 
 
     if (!response.ok) {
         const error = await response.json();
+        if (!retriedAfterEntitlement && (error.requirement === 'premium' || error.requirement === 'verified')) {
+            const duprReady = await ensureDuprEligibility(error.requirement);
+            if (duprReady.ok) {
+                return await submitRegistration({
+                    action,
+                    tournamentId,
+                    teamId,
+                    extra,
+                    retriedAfterEntitlement: true
+                });
+            }
+        }
         alert(error.error || 'Failed to update registration.');
         return false;
     }

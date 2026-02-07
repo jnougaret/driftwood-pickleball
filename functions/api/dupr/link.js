@@ -62,6 +62,26 @@ function parseRatings(source) {
     };
 }
 
+function parseEntitlements(source) {
+    const raw = source?.entitlements
+        ?? source?.stats?.entitlements
+        ?? source?.permissions
+        ?? source?.features
+        ?? [];
+    const values = Array.isArray(raw)
+        ? raw
+        : (raw && typeof raw === 'object' ? Object.keys(raw).filter(key => raw[key]) : []);
+    const normalized = values
+        .map(value => String(value || '').trim().toUpperCase())
+        .filter(Boolean);
+    const unique = Array.from(new Set(normalized));
+    return {
+        values: unique,
+        premiumL1: unique.includes('PREMIUM_L1'),
+        verifiedL1: unique.includes('VERIFIED_L1')
+    };
+}
+
 function fullName(firstName, lastName) {
     const first = String(firstName || '').trim();
     const last = String(lastName || '').trim();
@@ -148,6 +168,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const ratings = parseRatings(basicInfo.stats || basicInfo);
+    const entitlements = parseEntitlements(basicInfo);
     const profileName = basicInfo.displayName
         || fullName(basicInfo.firstName, basicInfo.lastName)
         || fullName(clerkUser.first_name, clerkUser.last_name)
@@ -159,13 +180,29 @@ export async function onRequestPost({ request, env }) {
     const isAllowlistedAdmin = await isAllowlistedAdminEmail(env, lowerEmail);
 
     await env.DB.prepare(`
-        INSERT INTO users (id, email, display_name, dupr_id, doubles_rating, singles_rating, is_admin)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+            id,
+            email,
+            display_name,
+            dupr_id,
+            doubles_rating,
+            singles_rating,
+            dupr_premium_l1,
+            dupr_verified_l1,
+            dupr_entitlements_json,
+            dupr_entitlements_checked_at,
+            is_admin
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
         ON CONFLICT(id) DO UPDATE SET
             display_name = excluded.display_name,
             dupr_id = excluded.dupr_id,
             doubles_rating = excluded.doubles_rating,
             singles_rating = excluded.singles_rating,
+            dupr_premium_l1 = excluded.dupr_premium_l1,
+            dupr_verified_l1 = excluded.dupr_verified_l1,
+            dupr_entitlements_json = excluded.dupr_entitlements_json,
+            dupr_entitlements_checked_at = CURRENT_TIMESTAMP,
             is_admin = CASE WHEN excluded.is_admin = 1 THEN 1 ELSE users.is_admin END,
             updated_at = CURRENT_TIMESTAMP
     `).bind(
@@ -175,6 +212,9 @@ export async function onRequestPost({ request, env }) {
         duprId,
         ratings.doublesRating,
         ratings.singlesRating,
+        entitlements.premiumL1 ? 1 : 0,
+        entitlements.verifiedL1 ? 1 : 0,
+        JSON.stringify(entitlements.values),
         (isMasterAdmin || isAllowlistedAdmin) ? 1 : 0
     ).run();
 

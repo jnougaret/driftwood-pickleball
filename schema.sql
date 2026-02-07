@@ -9,6 +9,10 @@ CREATE TABLE users (
   dupr_id TEXT,                     -- DUPR account ID (from DUPR API)
   doubles_rating REAL,              -- DUPR doubles rating (from DUPR API)
   singles_rating REAL,              -- DUPR singles rating (from DUPR API)
+  dupr_premium_l1 INTEGER DEFAULT 0,
+  dupr_verified_l1 INTEGER DEFAULT 0,
+  dupr_entitlements_json TEXT,
+  dupr_entitlements_checked_at DATETIME,
   is_admin BOOLEAN DEFAULT 0,       -- Admin flag
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -109,6 +113,8 @@ CREATE TABLE tournament_settings (
   playoff_best_of_three INTEGER DEFAULT 0,
   playoff_best_of_three_bronze INTEGER DEFAULT 0,
   dupr_required INTEGER DEFAULT 0,
+  requires_dupr_premium INTEGER DEFAULT 0,
+  requires_dupr_verified INTEGER DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
 );
