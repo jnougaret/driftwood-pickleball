@@ -2280,16 +2280,16 @@ function stopTournamentPolling(tournamentId) {
 
 function scoreInputHtml(tournamentId, matchId, slot, value, canEdit, version = 0) {
     const val = Number.isInteger(value) ? value : '';
-    const disabled = canEdit ? '' : 'disabled';
-    const disabledClass = '';
+    if (!canEdit) {
+        return `<span class="inline-flex min-w-[2.25rem] justify-end px-1 py-0.5 text-sm font-semibold text-gray-700 self-center">${val === '' ? '&mdash;' : val}</span>`;
+    }
     return `<input
         type="number"
         inputmode="numeric"
-        class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center ${disabledClass}"
+        class="score-input px-1 py-0.5 border border-gray-300 rounded text-right self-center"
         value="${val}"
         id="${tournamentId}-${matchId}-score${slot}"
         data-version="${Number.isInteger(version) ? version : 0}"
-        ${disabled}
         oninput="updateScore('${tournamentId}', '${matchId}')"
     >`;
 }
@@ -2393,7 +2393,9 @@ function computePlayoffRounds(seedOrder, bracketSize, scores, bestOfThree) {
 
 function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot, gameIndex, value, canEdit, version = 0) {
     const val = Number.isInteger(value) ? value : '';
-    const disabled = canEdit ? '' : 'disabled';
+    if (!canEdit) {
+        return `<span class="inline-flex min-w-[2.25rem] justify-end px-1 py-0.5 text-sm font-semibold text-gray-700 self-center">${val === '' ? '&mdash;' : val}</span>`;
+    }
     return `<input
         type="number"
         inputmode="numeric"
@@ -2401,7 +2403,6 @@ function scoreInputHtmlPlayoff(tournamentId, roundNumber, matchNumber, teamSlot,
         value="${val}"
         id="${tournamentId}-playoff-r${roundNumber}-m${matchNumber}-t${teamSlot}-g${gameIndex}"
         data-version="${Number.isInteger(version) ? version : 0}"
-        ${disabled}
         oninput="updatePlayoffScore('${tournamentId}', ${roundNumber}, ${matchNumber})"
     >`;
 }
@@ -3383,7 +3384,7 @@ async function showFullResults(tournamentId, section = 'roundRobin') {
         force: true,
         allowNonTournament: true,
         readOnly: true,
-        scoreEditMode: 'master_only',
+        scoreEditMode: 'none',
         forceSection: mode,
         scrollToRound: 0
     });
