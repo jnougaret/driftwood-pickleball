@@ -81,18 +81,18 @@ export async function onRequestPost({ request, env }) {
             body = {};
         }
 
-        const nowEpoch = Math.floor(Date.now() / 1000);
-        const defaultStart = nowEpoch - (180 * 24 * 60 * 60);
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const defaultStart = nowEpoch - (30 * 24 * 60 * 60);
         const startDate = toEpochSeconds(body.startDate, defaultStart);
         const endDate = toEpochSeconds(body.endDate, nowEpoch);
         const offset = Number.isInteger(body.offset) ? Math.max(0, body.offset) : 0;
-        const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(100, body.limit)) : 50;
+        const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(50, body.limit)) : 20;
 
         const endpoint = getClubMatchSearchUrl(env, access.duprEnv);
         const searchPayload = {
             offset,
             limit,
-            eventFormat: ['DOUBLES', 'SINGLES'],
+            eventFormat: ['DOUBLES'],
             startDate,
             endDate,
             clubId: access.configuredClubId
@@ -100,14 +100,18 @@ export async function onRequestPost({ request, env }) {
 
         let response;
         try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 12000);
             response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${access.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(searchPayload)
+                body: JSON.stringify(searchPayload),
+                signal: controller.signal
             });
+            clearTimeout(timer);
         } catch (error) {
             return jsonResponse({ error: 'Unable to reach DUPR club match search endpoint' }, 502);
         }
