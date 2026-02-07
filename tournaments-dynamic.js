@@ -3791,7 +3791,7 @@ function canManageDuprMatches() {
     return Boolean(window.authProfile && window.authProfile.isAdmin);
 }
 
-function setDuprReconcileStatus(messageHtml, tone = 'neutral') {
+function setDuprReconcileStatus(message, tone = 'neutral', allowHtml = false) {
     const box = document.getElementById('dupr-reconcile-status');
     if (!box) return;
     const toneClass = tone === 'error'
@@ -3800,7 +3800,11 @@ function setDuprReconcileStatus(messageHtml, tone = 'neutral') {
             ? 'border-green-200 bg-green-50 text-green-700'
             : 'border-gray-200 bg-gray-50 text-gray-700');
     box.className = `mb-5 border rounded-lg p-3 text-sm ${toneClass}`;
-    box.innerHTML = messageHtml;
+    if (allowHtml) {
+        box.innerHTML = message;
+    } else {
+        box.textContent = String(message || '');
+    }
     box.classList.remove('hidden');
 }
 
@@ -3943,7 +3947,8 @@ async function runDuprReconcile() {
         }
         setDuprReconcileStatus(
             `Reconcile complete: matched <strong>${summary.matchedCount}</strong>, remote missing in local <strong>${summary.remoteMissingInLocal}</strong>, local missing in remote <strong>${summary.localMissingInRemote}</strong>.`,
-            'success'
+            'success',
+            true
         );
     } catch (error) {
         const msg = (error && error.message && String(error.message).trim())
